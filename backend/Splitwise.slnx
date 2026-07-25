@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Splitwise.Api.Tests/Splitwise.Api.Tests.csproj" />
+  <Project Path="Splitwise.Api/Splitwise.Api.csproj" />
+</Solution>
