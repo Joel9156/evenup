@@ -3,20 +3,55 @@ import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useMyMemberId } from '@/hooks/useMyMemberId'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { AiChatMessageDto, AiChatResponse, ExpenseSuggestion, GroupResponse } from '@/lib/types'
+
+interface ShareState {
+  included: boolean
+  amount: string
+}
+
+interface EditableExpense {
+  description: string
+  totalAmount: string
+  paidByMemberId: string
+  shares: Record<string, ShareState>
+}
 
 function summarize(suggestion: ExpenseSuggestion): string {
   const shares = suggestion.shares.map((s) => `${s.displayName} $${s.amount.toFixed(2)}`).join(', ')
   return `I'll log "${suggestion.description}" — $${suggestion.totalAmount.toFixed(2)}, paid by ${suggestion.paidByDisplayName}, split: ${shares}`
 }
 
+// The AI's suggestion is a starting point, not gospel — compound instructions occasionally
+// trip it up (wrong split math, wrong idea of who's included). Seeding an editable form from
+// it, rather than only offering Confirm/Discard on the raw numbers, means a wrong guess is a
+// quick fix instead of a trip back through the chat.
+function buildEditableExpense(suggestion: ExpenseSuggestion, group: GroupResponse): EditableExpense {
+  const sharesByMemberId = new Map(suggestion.shares.map((s) => [s.memberId, s.amount]))
+
+  return {
+    description: suggestion.description,
+    totalAmount: suggestion.totalAmount.toFixed(2),
+    paidByMemberId: suggestion.paidByMemberId,
+    shares: Object.fromEntries(
+      group.members.map((m) => [
+        m.id,
+        sharesByMemberId.has(m.id)
+          ? { included: true, amount: sharesByMemberId.get(m.id)!.toFixed(2) }
+          : { included: false, amount: '' },
+      ]),
+    ),
+  }
+}
+
 export function GroupChatPage() {
   const { id } = useParams<{ id: string }>()
   const [group, setGroup] = useState<GroupResponse | null>(null)
   const [conversation, setConversation] = useState<AiChatMessageDto[]>([])
-  const [suggestion, setSuggestion] = useState<ExpenseSuggestion | null>(null)
+  const [editableExpense, setEditableExpense] = useState<EditableExpense | null>(null)
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -35,7 +70,7 @@ export function GroupChatPage() {
     const nextConversation: AiChatMessageDto[] = [...conversation, { role: 'user', content: input.trim() }]
     setConversation(nextConversation)
     setInput('')
-    setSuggestion(null)
+    setEditableExpense(null)
     setError(null)
     setIsSending(true)
 
@@ -50,9 +85,9 @@ export function GroupChatPage() {
           ...prev,
           { role: 'assistant', content: response.clarificationQuestion ?? 'Could you clarify that?' },
         ])
-      } else if (response.suggestion) {
+      } else if (response.suggestion && group) {
         setConversation((prev) => [...prev, { role: 'assistant', content: summarize(response.suggestion!) }])
-        setSuggestion(response.suggestion)
+        setEditableExpense(buildEditableExpense(response.suggestion, group))
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong talking to the AI.')
@@ -61,8 +96,38 @@ export function GroupChatPage() {
     }
   }
 
+  function toggleIncluded(memberId: string) {
+    setEditableExpense((prev) =>
+      prev ? { ...prev, shares: { ...prev.shares, [memberId]: { ...prev.shares[memberId], included: !prev.shares[memberId].included } } } : prev,
+    )
+  }
+
+  function setShareAmount(memberId: string, amount: string) {
+    setEditableExpense((prev) =>
+      prev ? { ...prev, shares: { ...prev.shares, [memberId]: { ...prev.shares[memberId], amount } } } : prev,
+    )
+  }
+
+  function handleSplitEvenly() {
+    setEditableExpense((prev) => {
+      if (!prev) return prev
+      const includedIds = Object.entries(prev.shares)
+        .filter(([, s]) => s.included)
+        .map(([memberId]) => memberId)
+      const total = Number(prev.totalAmount)
+      if (!total || includedIds.length === 0) return prev
+
+      const evenShare = (total / includedIds.length).toFixed(2)
+      const nextShares = { ...prev.shares }
+      for (const memberId of includedIds) {
+        nextShares[memberId] = { ...nextShares[memberId], amount: evenShare }
+      }
+      return { ...prev, shares: nextShares }
+    })
+  }
+
   async function handleConfirm() {
-    if (!suggestion || !myMemberId || !id) return
+    if (!editableExpense || !myMemberId || !id) return
     setError(null)
     setIsSending(true)
 
@@ -70,14 +135,16 @@ export function GroupChatPage() {
       await apiFetch(`/api/groups/${id}/expenses`, {
         method: 'POST',
         body: {
-          description: suggestion.description,
-          totalAmount: suggestion.totalAmount,
-          paidByMemberId: suggestion.paidByMemberId,
+          description: editableExpense.description,
+          totalAmount: Number(editableExpense.totalAmount),
+          paidByMemberId: editableExpense.paidByMemberId,
           createdByMemberId: myMemberId,
-          shares: suggestion.shares.filter((s) => s.amount > 0).map((s) => ({ memberId: s.memberId, amount: s.amount })),
+          shares: Object.entries(editableExpense.shares)
+            .filter(([, s]) => s.included && Number(s.amount) > 0)
+            .map(([memberId, s]) => ({ memberId, amount: Number(s.amount) })),
         },
       })
-      setSuggestion(null)
+      setEditableExpense(null)
       setConversation((prev) => [...prev, { role: 'assistant', content: 'Saved! What else would you like to log?' }])
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to save this expense.')
@@ -115,30 +182,87 @@ export function GroupChatPage() {
         )}
       </div>
 
-      {suggestion && (
+      {editableExpense && group && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Confirm this expense?</CardTitle>
+            <CardTitle className="text-base">Confirm this expense</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <div className="text-sm">
-              <p className="font-medium">{suggestion.description}</p>
-              <p className="text-muted-foreground">
-                ${suggestion.totalAmount.toFixed(2)} paid by {suggestion.paidByDisplayName}
-              </p>
-              <ul className="mt-1 text-muted-foreground">
-                {suggestion.shares.map((s) => (
-                  <li key={s.memberId}>
-                    {s.displayName}: ${s.amount.toFixed(2)}
-                  </li>
-                ))}
-              </ul>
+            <p className="text-xs text-muted-foreground">
+              The AI's best guess — check the numbers and fix anything before confirming.
+            </p>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chatDescription">Description</Label>
+              <Input
+                id="chatDescription"
+                value={editableExpense.description}
+                onChange={(e) => setEditableExpense((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
+              />
             </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chatTotalAmount">Total amount</Label>
+              <Input
+                id="chatTotalAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={editableExpense.totalAmount}
+                onChange={(e) => setEditableExpense((prev) => (prev ? { ...prev, totalAmount: e.target.value } : prev))}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chatPaidBy">Paid by</Label>
+              <select
+                id="chatPaidBy"
+                className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm"
+                value={editableExpense.paidByMemberId}
+                onChange={(e) => setEditableExpense((prev) => (prev ? { ...prev, paidByMemberId: e.target.value } : prev))}
+              >
+                {group.members.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <Label>Split between</Label>
+                <Button type="button" variant="outline" size="sm" onClick={handleSplitEvenly}>
+                  Split evenly
+                </Button>
+              </div>
+              {group.members.map((member) => (
+                <div key={member.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={editableExpense.shares[member.id]?.included ?? false}
+                    onChange={() => toggleIncluded(member.id)}
+                    className="size-4"
+                  />
+                  <span className="flex-1 text-sm">{member.displayName}</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-24"
+                    disabled={!editableExpense.shares[member.id]?.included}
+                    value={editableExpense.shares[member.id]?.amount ?? ''}
+                    onChange={(e) => setShareAmount(member.id, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+
             <div className="flex gap-2">
               <Button size="sm" onClick={() => void handleConfirm()} disabled={isSending || !myMemberId}>
                 Confirm
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setSuggestion(null)}>
+              <Button size="sm" variant="outline" onClick={() => setEditableExpense(null)}>
                 Discard
               </Button>
             </div>
