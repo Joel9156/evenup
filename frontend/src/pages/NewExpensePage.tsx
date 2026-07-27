@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useMyMemberId } from '@/hooks/useMyMemberId'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { GroupResponse } from '@/lib/types'
-import { useAuthStore } from '@/stores/authStore'
-import { useGuestStore } from '@/stores/guestStore'
 
 interface ShareState {
   included: boolean
@@ -17,8 +16,6 @@ interface ShareState {
 export function NewExpensePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const user = useAuthStore((state) => state.user)
-  const guestMemberships = useGuestStore((state) => state.memberships)
 
   const [group, setGroup] = useState<GroupResponse | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -40,11 +37,7 @@ export function NewExpensePage() {
       .catch(() => setNotFound(true))
   }, [id])
 
-  const myMemberId = useMemo(() => {
-    if (!group || !id) return undefined
-    if (user) return group.members.find((m) => m.userId === user.id)?.id
-    return guestMemberships[id]?.memberId
-  }, [group, user, guestMemberships, id])
+  const myMemberId = useMyMemberId(group, id)
 
   useEffect(() => {
     if (myMemberId) setPaidByMemberId(myMemberId)
@@ -78,7 +71,7 @@ export function NewExpensePage() {
     setShares((prev) => ({ ...prev, [memberId]: { ...prev[memberId], amount } }))
   }
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!group || !myMemberId) return
     setError(null)

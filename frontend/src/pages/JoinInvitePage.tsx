@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type SubmitEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -52,7 +52,7 @@ export function JoinInvitePage() {
     }
   }
 
-  function handleGuestSubmit(event: FormEvent) {
+  function handleGuestSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     void joinAs(guestName, false)
   }
