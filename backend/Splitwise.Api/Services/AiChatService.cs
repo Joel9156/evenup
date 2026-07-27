@@ -29,14 +29,14 @@ public class AiChatService(SplitwiseDbContext db, IAiExpenseParser aiExpensePars
 
         if (toolResult.NeedsClarification)
         {
-            return AiChatResult<AiChatResponse>.Ok(NeedsClarification(toolResult.ClarificationQuestion ?? "조금 더 자세히 말씀해주시겠어요?"));
+            return AiChatResult<AiChatResponse>.Ok(NeedsClarification(toolResult.ClarificationQuestion ?? "Could you give a few more details?"));
         }
 
         var membersByName = group.Members.ToDictionary(m => m.DisplayName, m => m, StringComparer.OrdinalIgnoreCase);
 
         if (!membersByName.TryGetValue(toolResult.PaidBy, out var paidByMember))
         {
-            return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"'{toolResult.PaidBy}'님을 그룹 멤버에서 찾을 수 없어요. 정확한 이름으로 다시 말씀해주시겠어요?"));
+            return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{toolResult.PaidBy}' in this group. Could you give the exact name again?"));
         }
 
         var resolvedShares = new List<(Member Member, decimal Amount)>();
@@ -44,7 +44,7 @@ public class AiChatService(SplitwiseDbContext db, IAiExpenseParser aiExpensePars
         {
             if (!membersByName.TryGetValue(share.MemberName, out var member))
             {
-                return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"'{share.MemberName}'님을 그룹 멤버에서 찾을 수 없어요. 정확한 이름으로 다시 말씀해주시겠어요?"));
+                return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{share.MemberName}' in this group. Could you give the exact name again?"));
             }
 
             resolvedShares.Add((member, share.Amount));
@@ -52,13 +52,13 @@ public class AiChatService(SplitwiseDbContext db, IAiExpenseParser aiExpensePars
 
         if (toolResult.TotalAmount <= 0 || resolvedShares.Count == 0)
         {
-            return AiChatResult<AiChatResponse>.Ok(NeedsClarification("금액이나 나눌 인원이 명확하지 않아요. 다시 한번 말씀해주시겠어요?"));
+            return AiChatResult<AiChatResponse>.Ok(NeedsClarification("The amount or who's splitting it isn't clear. Could you say that again?"));
         }
 
         var shareSum = resolvedShares.Sum(s => s.Amount);
         if (Math.Abs(shareSum - toolResult.TotalAmount) > AmountTolerance)
         {
-            return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"나눈 금액의 합({shareSum:N0})이 총액({toolResult.TotalAmount:N0})과 맞지 않아요. 다시 한번 확인해주시겠어요?"));
+            return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"The shares add up to {shareSum:N0}, which doesn't match the total of {toolResult.TotalAmount:N0}. Could you double-check that?"));
         }
 
         var suggestion = new ExpenseSuggestion

@@ -50,19 +50,20 @@ public class SettlementMessageService(
     {
         var accountInfo = ResolveAccountInfo(transaction.ToMemberId, membersById, overrides);
 
+        // TODO: currency is hardcoded to USD for now — plan is to make it a per-group setting later.
         var accountLine = accountInfo is null
-            ? "계좌: 등록된 계좌 정보 없음 - 받는 사람에게 직접 확인해주세요"
-            : $"계좌: {accountInfo.BankName} {accountInfo.AccountNumber} ({transaction.ToDisplayName})";
+            ? "Account: no account on file - please check with the recipient directly"
+            : $"Account: {accountInfo.BankName} {accountInfo.AccountNumber} ({transaction.ToDisplayName})";
 
         var messageText = $"""
-            [{groupName}] 정산 안내
+            [{groupName}] Settlement summary
 
-            {transaction.ToDisplayName}님, {transaction.FromDisplayName}님에게 {transaction.Amount:N0}원 받으시면 됩니다.
-            ({transaction.FromDisplayName}님, {transaction.ToDisplayName}님에게 {transaction.Amount:N0}원 보내주세요)
+            {transaction.ToDisplayName}, you're owed ${transaction.Amount:N2} from {transaction.FromDisplayName}.
+            ({transaction.FromDisplayName}, please send ${transaction.Amount:N2} to {transaction.ToDisplayName})
 
             {accountLine}
 
-            정산 내역 전체 보기: {shareLink}
+            View the full settlement: {shareLink}
             """;
 
         return new SettlementMessageResponse
@@ -74,7 +75,7 @@ public class SettlementMessageService(
             Amount = transaction.Amount,
             AccountInfoProvided = accountInfo is not null,
             MessageText = messageText,
-            MailtoLink = $"mailto:?subject={Uri.EscapeDataString($"[{groupName}] 정산 안내")}&body={Uri.EscapeDataString(messageText)}",
+            MailtoLink = $"mailto:?subject={Uri.EscapeDataString($"[{groupName}] Settlement summary")}&body={Uri.EscapeDataString(messageText)}",
             WhatsAppLink = $"https://wa.me/?text={Uri.EscapeDataString(messageText)}",
         };
     }

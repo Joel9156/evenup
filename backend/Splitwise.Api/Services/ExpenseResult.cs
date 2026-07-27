@@ -1,3 +1,4 @@
+
 namespace Splitwise.Api.Services;
 
 public enum ExpenseError

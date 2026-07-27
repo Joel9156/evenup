@@ -15,9 +15,9 @@ public class OpenAiExpenseParser : IAiExpenseParser
         {
           "type": "object",
           "properties": {
-            "description": { "type": "string", "description": "지출 내용 (예: 저녁식사, 택시비)" },
+            "description": { "type": "string", "description": "What the expense was for (e.g. dinner, taxi fare)" },
             "totalAmount": { "type": "number" },
-            "paidBy": { "type": "string", "description": "지출한 사람의 이름" },
+            "paidBy": { "type": "string", "description": "Name of the person who paid" },
             "shares": {
               "type": "array",
               "items": {
@@ -30,7 +30,7 @@ public class OpenAiExpenseParser : IAiExpenseParser
               }
             },
             "needsClarification": { "type": "boolean" },
-            "clarificationQuestion": { "type": "string", "description": "정보가 부족할 때 되물을 질문" }
+            "clarificationQuestion": { "type": "string", "description": "The follow-up question to ask when information is missing" }
           },
           "required": ["description", "totalAmount", "paidBy", "shares", "needsClarification"]
         }
@@ -66,7 +66,7 @@ public class OpenAiExpenseParser : IAiExpenseParser
 
         var options = new ChatCompletionOptions
         {
-            Tools = { ChatTool.CreateFunctionTool(ToolName, "그룹 지출 항목을 구조화된 형태로 기록한다", BinaryData.FromString(ToolParametersJson)) },
+            Tools = { ChatTool.CreateFunctionTool(ToolName, "Records a group expense entry in structured form", BinaryData.FromString(ToolParametersJson)) },
             ToolChoice = ChatToolChoice.CreateFunctionChoice(ToolName),
         };
 
@@ -87,14 +87,14 @@ public class OpenAiExpenseParser : IAiExpenseParser
     }
 
     private static string BuildSystemPrompt(IReadOnlyList<string> memberNames) => $"""
-        너는 그룹 지출 정산 앱의 AI 비서다.
-        사용자의 자연어 입력을 분석해서 log_expense 도구를 호출해라.
+        You are the AI assistant for a group expense-splitting app.
+        Analyze the user's natural-language input and call the log_expense tool.
 
-        규칙:
-        - 그룹 멤버 목록: {string.Join(", ", memberNames)}
-        - 금액이나 인원이 불명확하면 needsClarification=true로 하고 무엇이 부족한지 명시해라.
-        - 균등 분배가 기본이지만, 사용자가 "나만 뺴/더" 같은 조정을 언급하면 반영해라.
-        - 화폐 단위는 별도 언급 없으면 그룹 기본 통화로 간주해라.
+        Rules:
+        - Group members: {string.Join(", ", memberNames)}
+        - If the amount or who's involved is unclear, set needsClarification=true and state exactly what's missing.
+        - Split evenly by default, but adjust if the user mentions something like "just me less/more" or excludes someone.
+        - If no currency is mentioned, assume the group's default currency.
         """;
 
     private record LogExpenseArgs(string Description, decimal TotalAmount, string PaidBy, List<LogExpenseShareArgJson> Shares, bool NeedsClarification, string? ClarificationQuestion);

@@ -135,7 +135,7 @@ public class SettlementMessageServiceTests
 
         var message = Assert.Single(result!);
         Assert.False(message.AccountInfoProvided);
-        Assert.Contains("등록된 계좌 정보 없음", message.MessageText);
+        Assert.Contains("no account on file", message.MessageText);
     }
 
     [Fact]

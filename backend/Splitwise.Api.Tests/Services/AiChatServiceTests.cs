@@ -41,7 +41,7 @@ public class AiChatServiceTests
         return new SeededGroup(group, aliceUser, alice, bob);
     }
 
-    private static AiChatRequest AnyRequest() => new() { Messages = [new AiChatMessageDto { Role = "user", Content = "저녁 90불 나눠줘" }] };
+    private static AiChatRequest AnyRequest() => new() { Messages = [new AiChatMessageDto { Role = "user", Content = "split $90 for dinner" }] };
 
     [Fact]
     public async Task ProcessMessageAsync_UnknownGroup_ReturnsGroupNotFound()
@@ -73,14 +73,14 @@ public class AiChatServiceTests
     {
         using var db = CreateDb();
         var seed = await SeedGroupAsync(db);
-        var parser = new FakeAiExpenseParser(new LogExpenseToolResult("", 0, "", [], true, "얼마 썼는지 알려주세요"));
+        var parser = new FakeAiExpenseParser(new LogExpenseToolResult("", 0, "", [], true, "How much did you spend?"));
         var sut = new AiChatService(db, parser);
 
         var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
 
         Assert.True(result.Succeeded);
         Assert.True(result.Value!.NeedsClarification);
-        Assert.Equal("얼마 썼는지 알려주세요", result.Value.ClarificationQuestion);
+        Assert.Equal("How much did you spend?", result.Value.ClarificationQuestion);
         Assert.Null(result.Value.Suggestion);
     }
 
