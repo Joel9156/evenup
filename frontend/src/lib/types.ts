@@ -82,3 +82,44 @@ export interface SettlementMessageResponse {
   mailtoLink: string
   whatsAppLink: string
 }
+
+export interface MeResponse {
+  id: string
+  email: string
+  displayName: string
+  bankName: string | null
+  hasAccountNumber: boolean
+  createdAt: string
+}
+
+export interface UpdateAccountResponse {
+  bankName: string
+  maskedAccountNumber: string
+}
+
+export type AiChatRole = 'user' | 'assistant'
+
+export interface AiChatMessageDto {
+  role: AiChatRole
+  content: string
+}
+
+export interface ExpenseShareSuggestion {
+  memberId: string
+  displayName: string
+  amount: number
+}
+
+export interface ExpenseSuggestion {
+  description: string
+  totalAmount: number
+  paidByMemberId: string
+  paidByDisplayName: string
+  shares: ExpenseShareSuggestion[]
+}
+
+export interface AiChatResponse {
+  needsClarification: boolean
+  clarificationQuestion: string | null
+  suggestion: ExpenseSuggestion | null
+}
