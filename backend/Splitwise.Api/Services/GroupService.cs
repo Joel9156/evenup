@@ -75,6 +75,10 @@ public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCode
             GroupId = group.Id,
             GroupName = group.Name,
             MemberNames = group.Members.Select(m => m.DisplayName).ToList(),
+            ClaimableMembers = group.Members
+                .Where(m => m.IsGuest)
+                .Select(m => new PreviewMemberResponse { Id = m.Id, DisplayName = m.DisplayName })
+                .ToList(),
         };
     }
 
@@ -96,6 +100,23 @@ public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCode
             if (existingMember is not null)
             {
                 return ToJoinResponse(existingMember);
+            }
+
+            // Claim an existing unclaimed guest placeholder instead of creating a duplicate
+            // person, if the caller pointed at one (from the invite preview's
+            // ClaimableMembers) and it's still unclaimed. An invalid/already-claimed id is
+            // ignored rather than treated as an error — falls through to creating a normal
+            // new member below, same as if no id had been supplied at all.
+            if (request.ExistingMemberId is Guid existingMemberId)
+            {
+                var claimable = group.Members.FirstOrDefault(m => m.Id == existingMemberId && m.UserId == null);
+                if (claimable is not null)
+                {
+                    claimable.UserId = userId;
+                    claimable.IsGuest = false;
+                    await db.SaveChangesAsync(ct);
+                    return ToJoinResponse(claimable);
+                }
             }
 
             var member = new Member
@@ -128,6 +149,45 @@ public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCode
             await db.SaveChangesAsync(ct);
             return ToJoinResponse(guestMember);
         }
+    }
+
+    public async Task<AddMemberResult> AddMemberAsync(Guid groupId, Guid requestingUserId, AddMemberRequest request, CancellationToken ct = default)
+    {
+        var group = await db.Groups
+            .Include(g => g.Members)
+            .FirstOrDefaultAsync(g => g.Id == groupId, ct);
+
+        if (group is null)
+        {
+            return AddMemberResult.Fail(AddMemberError.GroupNotFound);
+        }
+
+        if (!group.Members.Any(m => m.UserId == requestingUserId))
+        {
+            return AddMemberResult.Fail(AddMemberError.Forbidden);
+        }
+
+        var member = new Member
+        {
+            Id = Guid.NewGuid(),
+            GroupId = groupId,
+            UserId = null,
+            DisplayName = request.DisplayName.Trim(),
+            IsGuest = true,
+            JoinedAt = DateTime.UtcNow,
+        };
+
+        db.Members.Add(member);
+        await db.SaveChangesAsync(ct);
+
+        return AddMemberResult.Ok(new MemberResponse
+        {
+            Id = member.Id,
+            UserId = member.UserId,
+            DisplayName = member.DisplayName,
+            IsGuest = member.IsGuest,
+            JoinedAt = member.JoinedAt,
+        });
     }
 
     private async Task<string> GenerateUniqueInviteCodeAsync(CancellationToken ct)

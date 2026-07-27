@@ -14,10 +14,16 @@ export interface GroupResponse {
   members: MemberResponse[]
 }
 
+export interface PreviewMemberResponse {
+  id: string
+  displayName: string
+}
+
 export interface GroupPreviewResponse {
   groupId: string
   groupName: string
   memberNames: string[]
+  claimableMembers: PreviewMemberResponse[]
 }
 
 export interface JoinGroupResponse {

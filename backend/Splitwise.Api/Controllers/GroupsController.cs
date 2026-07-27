@@ -50,4 +50,18 @@ public class GroupsController(IGroupService groupService) : ControllerBase
         var result = await groupService.JoinGroupAsync(id, signedInUserId, request, ct);
         return result is null ? NotFound() : Ok(result);
     }
+
+    [Authorize]
+    [HttpPost("{id:guid}/members")]
+    public async Task<ActionResult<MemberResponse>> AddMember(Guid id, AddMemberRequest request, CancellationToken ct)
+    {
+        var result = await groupService.AddMemberAsync(id, User.GetUserId(), request, ct);
+        return result.Error switch
+        {
+            AddMemberError.None => Ok(result.Member),
+            AddMemberError.GroupNotFound => NotFound(new { message = "Group not found." }),
+            AddMemberError.Forbidden => Forbid(),
+            _ => BadRequest(),
+        };
+    }
 }

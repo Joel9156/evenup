@@ -155,7 +155,8 @@ CREATE TABLE Settlements (
 | POST | `/api/groups` | 그룹 생성 | Sign-in |
 | GET | `/api/groups/{id}` | 그룹 정보 + 멤버 목록 조회 | 그룹 멤버 |
 | GET | `/api/groups/join/{inviteCode}` | 초대 코드로 그룹 미리보기 | Public |
-| POST | `/api/groups/{id}/join` | 그룹 참여 (sign-in 또는 guest, body에 displayName) | Public |
+| POST | `/api/groups/{id}/join` | 그룹 참여 (sign-in 또는 guest, body에 displayName). `existingMemberId`를 같이 보내면 초대 미리보기에서 본 기존 게스트 플레이스홀더를 "이게 나예요"로 인정(claim)하고 계정을 연결 — 중복 멤버 생성 방지 (사용자 요청으로 추가) | Public |
+| POST | `/api/groups/{id}/members` | 초대 링크 없이 이름만으로 게스트 멤버 직접 추가. 혼자 다 기록하고 정산 메시지만 보내는 유스케이스 지원 — 나중에 그 사람이 진짜 초대 링크로 들어오면 위 `existingMemberId`로 이 자리를 그대로 이어받음 (사용자 요청으로 추가) | 그룹 멤버 (sign-in) |
 
 ### Expenses
 | Method | Endpoint | 설명 | 권한 |

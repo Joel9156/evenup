@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { useMyMemberId } from '@/hooks/useMyMemberId'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { BalancesResponse, ExpenseResponse, GroupResponse } from '@/lib/types'
@@ -15,8 +16,17 @@ export function GroupDetailPage() {
   const [balances, setBalances] = useState<BalancesResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [newMemberName, setNewMemberName] = useState('')
+  const [isAddingMember, setIsAddingMember] = useState(false)
 
   const myMemberId = useMyMemberId(group, id)
+
+  const loadGroup = useCallback(() => {
+    if (!id) return
+    apiFetch<GroupResponse>(`/api/groups/${id}`)
+      .then(setGroup)
+      .catch((err: unknown) => setError(err instanceof ApiError ? err.message : 'Failed to load this group.'))
+  }, [id])
 
   const loadExpensesAndBalances = useCallback(() => {
     if (!id) return
@@ -25,23 +35,9 @@ export function GroupDetailPage() {
   }, [id])
 
   useEffect(() => {
-    if (!id) return
-    let cancelled = false
-
-    apiFetch<GroupResponse>(`/api/groups/${id}`)
-      .then((data) => {
-        if (!cancelled) setGroup(data)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load this group.')
-      })
-
+    loadGroup()
     loadExpensesAndBalances()
-
-    return () => {
-      cancelled = true
-    }
-  }, [id, loadExpensesAndBalances])
+  }, [loadGroup, loadExpensesAndBalances])
 
   async function handleDeleteExpense(expenseId: string) {
     if (!confirm('Delete this expense?')) return
@@ -51,6 +47,26 @@ export function GroupDetailPage() {
       loadExpensesAndBalances()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to delete this expense.')
+    }
+  }
+
+  async function handleAddMember(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!id || !newMemberName.trim()) return
+    setError(null)
+    setIsAddingMember(true)
+
+    try {
+      await apiFetch(`/api/groups/${id}/members`, {
+        method: 'POST',
+        body: { displayName: newMemberName.trim() },
+      })
+      setNewMemberName('')
+      loadGroup()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to add this member.')
+    } finally {
+      setIsAddingMember(false)
     }
   }
 
@@ -102,6 +118,20 @@ export function GroupDetailPage() {
               </li>
             ))}
           </ul>
+
+          {user && (
+            <form onSubmit={handleAddMember} className="mt-3 flex gap-2 border-t pt-3">
+              <Input
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                placeholder="Add someone by name, no invite needed"
+                className="flex-1"
+              />
+              <Button type="submit" size="sm" variant="outline" disabled={isAddingMember || !newMemberName.trim()}>
+                {isAddingMember ? 'Adding...' : 'Add'}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
 

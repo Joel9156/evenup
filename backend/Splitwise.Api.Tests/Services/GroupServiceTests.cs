@@ -180,4 +180,114 @@ public class GroupServiceTests
 
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task AddMemberAsync_ByExistingMember_CreatesGuestPlaceholderWithNoUserId()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var group = await sut.CreateGroupAsync(alice.Id, new CreateGroupRequest { Name = "Solo-tracked Trip" });
+
+        var result = await sut.AddMemberAsync(group.Id, alice.Id, new AddMemberRequest { DisplayName = "Bob" });
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("Bob", result.Member!.DisplayName);
+        Assert.True(result.Member.IsGuest);
+        Assert.Null(result.Member.UserId);
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_ByNonMember_ReturnsForbidden()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var stranger = await SeedUserAsync(db, "Stranger");
+        var group = await sut.CreateGroupAsync(alice.Id, new CreateGroupRequest { Name = "Trip" });
+
+        var result = await sut.AddMemberAsync(group.Id, stranger.Id, new AddMemberRequest { DisplayName = "Bob" });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(AddMemberError.Forbidden, result.Error);
+    }
+
+    [Fact]
+    public async Task AddMemberAsync_UnknownGroup_ReturnsGroupNotFound()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+
+        var result = await sut.AddMemberAsync(Guid.NewGuid(), alice.Id, new AddMemberRequest { DisplayName = "Bob" });
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(AddMemberError.GroupNotFound, result.Error);
+    }
+
+    [Fact]
+    public async Task GetGroupPreviewAsync_ClaimableMembers_OnlyIncludesUnclaimedGuests()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var group = await sut.CreateGroupAsync(alice.Id, new CreateGroupRequest { Name = "Trip" });
+        await sut.AddMemberAsync(group.Id, alice.Id, new AddMemberRequest { DisplayName = "Bob" });
+
+        var preview = await sut.GetGroupPreviewAsync(group.InviteCode);
+
+        Assert.Equal(2, preview!.MemberNames.Count); // Alice + Bob both listed
+        var claimable = Assert.Single(preview.ClaimableMembers); // only Bob (guest) is claimable, not Alice (signed-in)
+        Assert.Equal("Bob", claimable.DisplayName);
+    }
+
+    [Fact]
+    public async Task JoinGroupAsync_SignedInUserClaimsExistingPlaceholder_LinksItInsteadOfDuplicating()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var bobUser = await SeedUserAsync(db, "Bob");
+        var group = await sut.CreateGroupAsync(alice.Id, new CreateGroupRequest { Name = "Trip" });
+        var placeholder = await sut.AddMemberAsync(group.Id, alice.Id, new AddMemberRequest { DisplayName = "Bob" });
+
+        var result = await sut.JoinGroupAsync(group.Id, bobUser.Id, new JoinGroupRequest
+        {
+            DisplayName = "Bob",
+            ExistingMemberId = placeholder.Member!.Id,
+        });
+
+        Assert.NotNull(result);
+        Assert.Equal(placeholder.Member.Id, result!.MemberId); // same row, not a new one
+        Assert.False(result.IsGuest);
+
+        var updated = await db.Members.FindAsync(placeholder.Member.Id);
+        Assert.Equal(bobUser.Id, updated!.UserId);
+        Assert.False(updated.IsGuest);
+
+        var groupAfter = await sut.GetGroupAsync(group.Id);
+        Assert.Equal(2, groupAfter!.Members.Count); // still just Alice + (now-claimed) Bob, no duplicate
+    }
+
+    [Fact]
+    public async Task JoinGroupAsync_ExistingMemberIdAlreadyClaimed_FallsBackToCreatingNewMember()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var group = await sut.CreateGroupAsync(alice.Id, new CreateGroupRequest { Name = "Trip" });
+
+        // Alice's own membership is already claimed (UserId set) — trying to "claim" it
+        // as someone else should be ignored, not hijack her account's member row.
+        var carolUser = await SeedUserAsync(db, "Carol");
+        var result = await sut.JoinGroupAsync(group.Id, carolUser.Id, new JoinGroupRequest
+        {
+            DisplayName = "Carol",
+            ExistingMemberId = group.Members.Single().Id, // Alice's member id
+        });
+
+        Assert.NotNull(result);
+        Assert.NotEqual(group.Members.Single().Id, result!.MemberId); // got a brand-new member instead
+        Assert.Equal("Carol", result.DisplayName);
+    }
 }
