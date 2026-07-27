@@ -74,7 +74,7 @@ export function GroupChatPage() {
           totalAmount: suggestion.totalAmount,
           paidByMemberId: suggestion.paidByMemberId,
           createdByMemberId: myMemberId,
-          shares: suggestion.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
+          shares: suggestion.shares.filter((s) => s.amount > 0).map((s) => ({ memberId: s.memberId, amount: s.amount })),
         },
       })
       setSuggestion(null)

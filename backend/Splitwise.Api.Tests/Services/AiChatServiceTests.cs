@@ -105,6 +105,30 @@ public class AiChatServiceTests
     }
 
     [Fact]
+    public async Task ProcessMessageAsync_AiListsNonParticipantsAtZero_DropsThemFromTheSuggestion()
+    {
+        // Reproduces a real bug: for "I bought groceries just for myself," the AI listed
+        // every group member but gave the non-participants $0 instead of omitting them —
+        // and CreateExpenseRequest rejects any share amount <= 0, so submitting the
+        // suggestion as-is would fail outright.
+        using var db = CreateDb();
+        var seed = await SeedGroupAsync(db);
+        var toolResult = new LogExpenseToolResult(
+            "Groceries", 20m, "Alice",
+            [new LogExpenseShareArg("Alice", 20m), new LogExpenseShareArg("Bob", 0m)],
+            false, null);
+        var sut = new AiChatService(db, new FakeAiExpenseParser(toolResult));
+
+        var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Value!.NeedsClarification);
+        var share = Assert.Single(result.Value.Suggestion!.Shares);
+        Assert.Equal(seed.Alice.Id, share.MemberId);
+        Assert.Equal(20m, share.Amount);
+    }
+
+    [Fact]
     public async Task ProcessMessageAsync_PaidByNameNotInGroup_ReturnsClarification()
     {
         using var db = CreateDb();

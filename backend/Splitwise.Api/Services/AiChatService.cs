@@ -42,6 +42,16 @@ public class AiChatService(SplitwiseDbContext db, IAiExpenseParser aiExpensePars
         var resolvedShares = new List<(Member Member, decimal Amount)>();
         foreach (var share in toolResult.Shares)
         {
+            // The AI sometimes lists every group member with $0 for the ones who aren't
+            // actually part of the split (e.g. "I bought this just for myself"), rather than
+            // omitting them. A $0 line isn't a real share — CreateExpenseRequest requires
+            // every share to be > 0 — so drop it here rather than pass it through and have
+            // expense creation reject the whole thing.
+            if (share.Amount <= 0)
+            {
+                continue;
+            }
+
             if (!membersByName.TryGetValue(share.MemberName, out var member))
             {
                 return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{share.MemberName}' in this group. Could you give the exact name again?"));

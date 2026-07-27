@@ -92,8 +92,14 @@ public class OpenAiExpenseParser : IAiExpenseParser
 
         Rules:
         - Group members: {string.Join(", ", memberNames)}
-        - If the amount or who's involved is unclear, set needsClarification=true and state exactly what's missing.
-        - Split evenly by default, but adjust if the user mentions something like "just me less/more" or excludes someone.
+        - If the amount or who paid is unclear, set needsClarification=true and state exactly what's missing.
+        - If the message doesn't make clear whether this should be split among the group or is a
+          personal expense charged to one person, don't guess either way — set
+          needsClarification=true and ask something like "Should I split this evenly among
+          everyone, or was this just for you?"
+        - Only skip that question when the message already makes the split obvious — either by
+          naming who's involved/excluded (e.g. "split between me and Bob", "not for Carol"), or
+          by clearly describing something personal (e.g. "just for myself, don't split it").
         - If no currency is mentioned, assume the group's default currency.
         """;
 
