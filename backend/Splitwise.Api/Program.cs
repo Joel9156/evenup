@@ -27,6 +27,7 @@ builder.Services.AddScoped<IAccountEncryptionService, AesAccountEncryptionServic
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IInviteCodeGenerator, InviteCodeGenerator>();
 builder.Services.AddScoped<IGroupService, GroupService>();
+builder.Services.AddScoped<IExpenseService, ExpenseService>();
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt configuration section is missing.");
