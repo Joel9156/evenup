@@ -72,6 +72,7 @@ public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCode
 
         return new GroupPreviewResponse
         {
+            GroupId = group.Id,
             GroupName = group.Name,
             MemberNames = group.Members.Select(m => m.DisplayName).ToList(),
         };
@@ -153,6 +154,7 @@ public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCode
         Members = members.Select(m => new MemberResponse
         {
             Id = m.Id,
+            UserId = m.UserId,
             DisplayName = m.DisplayName,
             IsGuest = m.IsGuest,
             JoinedAt = m.JoinedAt,
