@@ -39,36 +39,90 @@ public class AiChatService(SplitwiseDbContext db, IAiExpenseParser aiExpensePars
             return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{toolResult.PaidBy}' in this group. Could you give the exact name again?"));
         }
 
-        var resolvedShares = new List<(Member Member, decimal Amount)>();
-        foreach (var share in toolResult.Shares)
+        // personalItems are ADDITIVE — a member with one still gets their even share of the
+        // shared portion too (splitMembers), on top of it. Nothing here does the actual
+        // division; that's computed below, deterministically, rather than trusting the model
+        // to divide decimals correctly.
+        var personalItems = new List<(Member Member, decimal Amount)>();
+        foreach (var item in toolResult.PersonalItems)
         {
-            // The AI sometimes lists every group member with $0 for the ones who aren't
-            // actually part of the split (e.g. "I bought this just for myself"), rather than
-            // omitting them. A $0 line isn't a real share — CreateExpenseRequest requires
-            // every share to be > 0 — so drop it here rather than pass it through and have
-            // expense creation reject the whole thing.
-            if (share.Amount <= 0)
+            if (item.Amount <= 0)
             {
-                continue;
+                continue; // not a real extra charge
             }
 
-            if (!membersByName.TryGetValue(share.MemberName, out var member))
+            if (!membersByName.TryGetValue(item.MemberName, out var member))
             {
-                return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{share.MemberName}' in this group. Could you give the exact name again?"));
+                return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{item.MemberName}' in this group. Could you give the exact name again?"));
             }
 
-            resolvedShares.Add((member, share.Amount));
+            personalItems.Add((member, item.Amount));
         }
 
-        if (toolResult.TotalAmount <= 0 || resolvedShares.Count == 0)
+        var splitMembers = new List<Member>();
+        foreach (var name in toolResult.SplitMembers)
+        {
+            if (!membersByName.TryGetValue(name, out var member))
+            {
+                return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"I couldn't find '{name}' in this group. Could you give the exact name again?"));
+            }
+
+            splitMembers.Add(member);
+        }
+
+        if (toolResult.TotalAmount <= 0 || (splitMembers.Count == 0 && personalItems.Count == 0))
         {
             return AiChatResult<AiChatResponse>.Ok(NeedsClarification("The amount or who's splitting it isn't clear. Could you say that again?"));
         }
 
-        var shareSum = resolvedShares.Sum(s => s.Amount);
-        if (Math.Abs(shareSum - toolResult.TotalAmount) > AmountTolerance)
+        var personalSum = personalItems.Sum(p => p.Amount);
+        var amounts = new Dictionary<Guid, decimal>();
+        var membersById = new Dictionary<Guid, Member>();
+
+        void AddAmount(Member member, decimal amount)
         {
-            return AiChatResult<AiChatResponse>.Ok(NeedsClarification($"The shares add up to {shareSum:N0}, which doesn't match the total of {toolResult.TotalAmount:N0}. Could you double-check that?"));
+            amounts[member.Id] = amounts.GetValueOrDefault(member.Id) + amount;
+            membersById[member.Id] = member;
+        }
+
+        if (splitMembers.Count > 0)
+        {
+            var remainder = toolResult.TotalAmount - personalSum;
+            if (remainder <= 0)
+            {
+                return AiChatResult<AiChatResponse>.Ok(NeedsClarification(
+                    $"The personal amounts already add up to {personalSum:N2}, which leaves nothing to split among the rest. Could you double-check that?"));
+            }
+
+            // Round to the cent, then give any leftover cent(s) to the last person so the
+            // shares always sum to exactly `remainder` — no floating drift to reconcile.
+            var perPerson = Math.Round(remainder / splitMembers.Count, 2, MidpointRounding.AwayFromZero);
+            for (var i = 0; i < splitMembers.Count; i++)
+            {
+                var isLast = i == splitMembers.Count - 1;
+                var amount = isLast ? remainder - (perPerson * (splitMembers.Count - 1)) : perPerson;
+                AddAmount(splitMembers[i], amount);
+            }
+        }
+        else if (Math.Abs(personalSum - toolResult.TotalAmount) > AmountTolerance)
+        {
+            return AiChatResult<AiChatResponse>.Ok(NeedsClarification(
+                $"The amounts add up to {personalSum:N2}, which doesn't match the total of {toolResult.TotalAmount:N2}. Could you double-check that?"));
+        }
+
+        foreach (var (member, amount) in personalItems)
+        {
+            AddAmount(member, amount);
+        }
+
+        var resolvedShares = amounts
+            .Where(kv => kv.Value > 0)
+            .Select(kv => (Member: membersById[kv.Key], Amount: kv.Value))
+            .ToList();
+
+        if (resolvedShares.Count == 0)
+        {
+            return AiChatResult<AiChatResponse>.Ok(NeedsClarification("The amount or who's splitting it isn't clear. Could you say that again?"));
         }
 
         var suggestion = new ExpenseSuggestion

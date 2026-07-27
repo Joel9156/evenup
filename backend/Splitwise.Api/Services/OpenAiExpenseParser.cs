@@ -10,7 +10,10 @@ public class OpenAiExpenseParser : IAiExpenseParser
 {
     private const string ToolName = "log_expense";
 
-    // Matches the JSON schema in specs/splitwise-clone-spec.md section 7 exactly.
+    // Deliberately asks the model for structure (who's in the even split, who has an extra
+    // personal amount) rather than final dollar figures — LLMs are reliable at extracting that
+    // from natural language, not at exact multi-step division/rounding, so AiChatService does
+    // that arithmetic itself instead of trusting whatever numbers come back from the prompt.
     private const string ToolParametersJson = """
         {
           "type": "object",
@@ -18,8 +21,14 @@ public class OpenAiExpenseParser : IAiExpenseParser
             "description": { "type": "string", "description": "What the expense was for (e.g. dinner, taxi fare)" },
             "totalAmount": { "type": "number" },
             "paidBy": { "type": "string", "description": "Name of the person who paid" },
-            "shares": {
+            "splitMembers": {
               "type": "array",
+              "description": "Everyone who evenly splits the shared portion of this expense (the total minus any personalItems amounts below). Do not include anyone the user excluded entirely.",
+              "items": { "type": "string" }
+            },
+            "personalItems": {
+              "type": "array",
+              "description": "Extra individual amounts on top of the even split, for something one specific person bought/used just for themselves within a larger shared expense (e.g. \"I also grabbed a toothbrush for myself, that's $2.25\"). That person still belongs in splitMembers too, unless the user separately excludes them from the shared portion. Leave this empty if nothing like that was mentioned.",
               "items": {
                 "type": "object",
                 "properties": {
@@ -32,7 +41,7 @@ public class OpenAiExpenseParser : IAiExpenseParser
             "needsClarification": { "type": "boolean" },
             "clarificationQuestion": { "type": "string", "description": "The follow-up question to ask when information is missing" }
           },
-          "required": ["description", "totalAmount", "paidBy", "shares", "needsClarification"]
+          "required": ["description", "totalAmount", "paidBy", "splitMembers", "personalItems", "needsClarification"]
         }
         """;
 
@@ -81,7 +90,8 @@ public class OpenAiExpenseParser : IAiExpenseParser
             args.Description,
             args.TotalAmount,
             args.PaidBy,
-            args.Shares.Select(s => new LogExpenseShareArg(s.MemberName, s.Amount)).ToList(),
+            args.SplitMembers,
+            args.PersonalItems.Select(p => new LogExpensePersonalItem(p.MemberName, p.Amount)).ToList(),
             args.NeedsClarification,
             args.ClarificationQuestion);
     }
@@ -100,10 +110,15 @@ public class OpenAiExpenseParser : IAiExpenseParser
         - Only skip that question when the message already makes the split obvious — either by
           naming who's involved/excluded (e.g. "split between me and Bob", "not for Carol"), or
           by clearly describing something personal (e.g. "just for myself, don't split it").
+        - Never do division or rounding math yourself. Put everyone who evenly shares the expense
+          in splitMembers and let the app divide the remaining amount for you. If someone also
+          has their own extra item folded into the total (e.g. "I also grabbed a toothbrush for
+          myself, that's $2.25"), add it to personalItems as an amount on top of their even
+          share — do not subtract it from splitMembers or treat it as replacing their share.
         - If no currency is mentioned, assume the group's default currency.
         """;
 
-    private record LogExpenseArgs(string Description, decimal TotalAmount, string PaidBy, List<LogExpenseShareArgJson> Shares, bool NeedsClarification, string? ClarificationQuestion);
+    private record LogExpenseArgs(string Description, decimal TotalAmount, string PaidBy, List<string> SplitMembers, List<LogExpensePersonalItemJson> PersonalItems, bool NeedsClarification, string? ClarificationQuestion);
 
-    private record LogExpenseShareArgJson(string MemberName, decimal Amount);
+    private record LogExpensePersonalItemJson(string MemberName, decimal Amount);
 }
