@@ -4,6 +4,7 @@ namespace Splitwise.Api.Services;
 
 public interface IGroupService
 {
+    Task<List<GroupResponse>> GetMyGroupsAsync(Guid userId, CancellationToken ct = default);
     Task<GroupResponse> CreateGroupAsync(Guid creatorUserId, CreateGroupRequest request, CancellationToken ct = default);
     Task<GroupResponse?> GetGroupAsync(Guid groupId, CancellationToken ct = default);
     Task<GroupPreviewResponse?> GetGroupPreviewAsync(string inviteCode, CancellationToken ct = default);

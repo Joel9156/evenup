@@ -151,6 +151,7 @@ CREATE TABLE Settlements (
 ### Groups
 | Method | Endpoint | 설명 | 권한 |
 |---|---|---|---|
+| GET | `/api/groups` | 내 그룹 목록 조회 (Dashboard용, 스펙 원안에 없어서 구현 중 추가) | Sign-in |
 | POST | `/api/groups` | 그룹 생성 | Sign-in |
 | GET | `/api/groups/{id}` | 그룹 정보 + 멤버 목록 조회 | 그룹 멤버 |
 | GET | `/api/groups/join/{inviteCode}` | 초대 코드로 그룹 미리보기 | Public |

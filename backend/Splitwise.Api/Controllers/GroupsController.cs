@@ -11,6 +11,14 @@ namespace Splitwise.Api.Controllers;
 public class GroupsController(IGroupService groupService) : ControllerBase
 {
     [Authorize]
+    [HttpGet]
+    public async Task<ActionResult<List<GroupResponse>>> GetMine(CancellationToken ct)
+    {
+        var groups = await groupService.GetMyGroupsAsync(User.GetUserId(), ct);
+        return Ok(groups);
+    }
+
+    [Authorize]
     [HttpPost]
     public async Task<ActionResult<GroupResponse>> Create(CreateGroupRequest request, CancellationToken ct)
     {

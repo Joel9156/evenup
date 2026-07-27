@@ -7,6 +7,17 @@ namespace Splitwise.Api.Services;
 
 public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCodeGenerator) : IGroupService
 {
+    public async Task<List<GroupResponse>> GetMyGroupsAsync(Guid userId, CancellationToken ct = default)
+    {
+        var groups = await db.Groups
+            .Include(g => g.Members)
+            .Where(g => g.Members.Any(m => m.UserId == userId))
+            .OrderByDescending(g => g.CreatedAt)
+            .ToListAsync(ct);
+
+        return groups.Select(g => ToGroupResponse(g, g.Members)).ToList();
+    }
+
     public async Task<GroupResponse> CreateGroupAsync(Guid creatorUserId, CreateGroupRequest request, CancellationToken ct = default)
     {
         var creator = await db.Users.FindAsync([creatorUserId], ct)

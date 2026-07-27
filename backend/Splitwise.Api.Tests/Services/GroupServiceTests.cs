@@ -134,4 +134,50 @@ public class GroupServiceTests
         Assert.Equal("Ski Trip", preview!.GroupName);
         Assert.Contains("Alice", preview.MemberNames);
     }
+
+    [Fact]
+    public async Task GetMyGroupsAsync_ReturnsOnlyGroupsTheUserIsAMemberOf()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var bob = await SeedUserAsync(db, "Bob");
+
+        var aliceGroup = await sut.CreateGroupAsync(alice.Id, new CreateGroupRequest { Name = "Alice's Trip" });
+        await sut.CreateGroupAsync(bob.Id, new CreateGroupRequest { Name = "Bob's Trip" }); // Alice isn't in this one
+
+        var result = await sut.GetMyGroupsAsync(alice.Id);
+
+        var group = Assert.Single(result);
+        Assert.Equal(aliceGroup.Id, group.Id);
+    }
+
+    [Fact]
+    public async Task GetMyGroupsAsync_IncludesGroupsJoinedViaInvite_NotOnlyCreated()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+        var bob = await SeedUserAsync(db, "Bob");
+
+        var bobsGroup = await sut.CreateGroupAsync(bob.Id, new CreateGroupRequest { Name = "Bob's Trip" });
+        await sut.JoinGroupAsync(bobsGroup.Id, alice.Id, new JoinGroupRequest { DisplayName = "Alice" });
+
+        var result = await sut.GetMyGroupsAsync(alice.Id);
+
+        var group = Assert.Single(result);
+        Assert.Equal(bobsGroup.Id, group.Id);
+    }
+
+    [Fact]
+    public async Task GetMyGroupsAsync_UserInNoGroups_ReturnsEmptyList()
+    {
+        using var db = CreateDb();
+        var sut = new GroupService(db, new InviteCodeGenerator());
+        var alice = await SeedUserAsync(db, "Alice");
+
+        var result = await sut.GetMyGroupsAsync(alice.Id);
+
+        Assert.Empty(result);
+    }
 }
