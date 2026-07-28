@@ -2,7 +2,7 @@
 
 A group expense-splitting app that tracks shared costs, settles up with the fewest possible transfers, and logs expenses conversationally through an AI chat assistant. Built as a portfolio project to explore a layered ASP.NET Core backend, real security fundamentals (hashing vs. encryption, permission-by-construction), and a responsible pattern for integrating an LLM into a product that touches real money.
 
-**Live demo.** Coming soon (see [Deployment](#deployment)). Until then, run it locally (below) and open `/join/DEMOTRIP` to browse a seeded demo group with no sign-up required.
+**Live demo.** [splitwise-five-zeta.vercel.app/join/DEMOTRIP](https://splitwise-five-zeta.vercel.app/join/DEMOTRIP) browses a seeded demo group with no sign-up required.
 
 ![Landing page](docs/screenshots/landing.png)
 
@@ -99,4 +99,4 @@ specs/
 
 ## Deployment
 
-The plan is Vercel (frontend), Render or Railway (API), and Neon (Postgres). Not yet live. This section will be updated with a real link once it is.
+Vercel (frontend), Railway (API), and Neon (Postgres).
