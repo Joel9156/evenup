@@ -64,4 +64,36 @@ public class GroupsController(IGroupService groupService) : ControllerBase
             _ => BadRequest(),
         };
     }
+
+    [Authorize]
+    [HttpPut("{id:guid}/members/{memberId:guid}")]
+    public async Task<ActionResult<MemberResponse>> UpdateMember(Guid id, Guid memberId, UpdateMemberRequest request, CancellationToken ct)
+    {
+        var result = await groupService.UpdateMemberAsync(id, memberId, User.GetUserId(), request, ct);
+        return result.Error switch
+        {
+            UpdateMemberError.None => Ok(result.Member),
+            UpdateMemberError.GroupNotFound => NotFound(new { message = "Group not found." }),
+            UpdateMemberError.MemberNotFound => NotFound(new { message = "Member not found." }),
+            UpdateMemberError.Forbidden => Forbid(),
+            _ => BadRequest(),
+        };
+    }
+
+    [Authorize]
+    [HttpDelete("{id:guid}/members/{memberId:guid}")]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid memberId, CancellationToken ct)
+    {
+        var result = await groupService.RemoveMemberAsync(id, memberId, User.GetUserId(), ct);
+        return result.Error switch
+        {
+            RemoveMemberError.None => NoContent(),
+            RemoveMemberError.GroupNotFound => NotFound(new { message = "Group not found." }),
+            RemoveMemberError.MemberNotFound => NotFound(new { message = "Member not found." }),
+            RemoveMemberError.Forbidden => Forbid(),
+            RemoveMemberError.MemberHasExpenses => BadRequest(new { message = "This member is involved in existing expenses and can't be removed." }),
+            RemoveMemberError.LastSignedInMember => BadRequest(new { message = "A group needs at least one signed-in member." }),
+            _ => BadRequest(),
+        };
+    }
 }

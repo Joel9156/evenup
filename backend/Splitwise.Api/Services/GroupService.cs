@@ -190,6 +190,82 @@ public class GroupService(SplitwiseDbContext db, IInviteCodeGenerator inviteCode
         });
     }
 
+    public async Task<UpdateMemberResult> UpdateMemberAsync(Guid groupId, Guid memberId, Guid requestingUserId, UpdateMemberRequest request, CancellationToken ct = default)
+    {
+        var group = await db.Groups
+            .Include(g => g.Members)
+            .FirstOrDefaultAsync(g => g.Id == groupId, ct);
+
+        if (group is null)
+        {
+            return UpdateMemberResult.Fail(UpdateMemberError.GroupNotFound);
+        }
+
+        if (!group.Members.Any(m => m.UserId == requestingUserId))
+        {
+            return UpdateMemberResult.Fail(UpdateMemberError.Forbidden);
+        }
+
+        var member = group.Members.FirstOrDefault(m => m.Id == memberId);
+        if (member is null)
+        {
+            return UpdateMemberResult.Fail(UpdateMemberError.MemberNotFound);
+        }
+
+        member.DisplayName = request.DisplayName.Trim();
+        await db.SaveChangesAsync(ct);
+
+        return UpdateMemberResult.Ok(new MemberResponse
+        {
+            Id = member.Id,
+            UserId = member.UserId,
+            DisplayName = member.DisplayName,
+            IsGuest = member.IsGuest,
+            JoinedAt = member.JoinedAt,
+        });
+    }
+
+    public async Task<RemoveMemberResult> RemoveMemberAsync(Guid groupId, Guid memberId, Guid requestingUserId, CancellationToken ct = default)
+    {
+        var group = await db.Groups
+            .Include(g => g.Members)
+            .FirstOrDefaultAsync(g => g.Id == groupId, ct);
+
+        if (group is null)
+        {
+            return RemoveMemberResult.Fail(RemoveMemberError.GroupNotFound);
+        }
+
+        if (!group.Members.Any(m => m.UserId == requestingUserId))
+        {
+            return RemoveMemberResult.Fail(RemoveMemberError.Forbidden);
+        }
+
+        var member = group.Members.FirstOrDefault(m => m.Id == memberId);
+        if (member is null)
+        {
+            return RemoveMemberResult.Fail(RemoveMemberError.MemberNotFound);
+        }
+
+        if (member.UserId is not null && group.Members.Count(m => m.UserId != null) == 1)
+        {
+            return RemoveMemberResult.Fail(RemoveMemberError.LastSignedInMember);
+        }
+
+        var hasExpenseHistory = await db.Expenses.AnyAsync(e => e.PaidByMemberId == memberId || e.CreatedByMemberId == memberId, ct)
+            || await db.ExpenseShares.AnyAsync(s => s.MemberId == memberId, ct);
+
+        if (hasExpenseHistory)
+        {
+            return RemoveMemberResult.Fail(RemoveMemberError.MemberHasExpenses);
+        }
+
+        db.Members.Remove(member);
+        await db.SaveChangesAsync(ct);
+
+        return RemoveMemberResult.Ok();
+    }
+
     private async Task<string> GenerateUniqueInviteCodeAsync(CancellationToken ct)
     {
         for (var attempt = 0; attempt < 5; attempt++)

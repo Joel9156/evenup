@@ -33,6 +33,8 @@ export function GroupDetailPage() {
   const [newMemberName, setNewMemberName] = useState('')
   const [isAddingMember, setIsAddingMember] = useState(false)
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null)
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
+  const [editMemberName, setEditMemberName] = useState('')
 
   const myMemberId = useMyMemberId(group, id)
 
@@ -62,6 +64,35 @@ export function GroupDetailPage() {
       loadExpensesAndBalances()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to delete this expense.')
+    }
+  }
+
+  async function handleUpdateMember(memberId: string) {
+    if (!id || !editMemberName.trim()) return
+    setError(null)
+
+    try {
+      await apiFetch(`/api/groups/${id}/members/${memberId}`, {
+        method: 'PUT',
+        body: { displayName: editMemberName.trim() },
+      })
+      setEditingMemberId(null)
+      loadGroup()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to rename this member.')
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    if (!id) return
+    if (!confirm('Remove this member from the group?')) return
+    setError(null)
+
+    try {
+      await apiFetch(`/api/groups/${id}/members/${memberId}`, { method: 'DELETE' })
+      loadGroup()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to remove this member.')
     }
   }
 
@@ -130,12 +161,48 @@ export function GroupDetailPage() {
         </CardHeader>
         <CardContent>
           <ul className="flex flex-col gap-1.5 text-sm">
-            {group.members.map((member) => (
-              <li key={member.id} className="flex items-center gap-2">
-                {member.displayName}
-                {member.isGuest && <span className="text-xs text-muted-foreground">(guest)</span>}
-              </li>
-            ))}
+            {group.members.map((member) =>
+              editingMemberId === member.id ? (
+                <li key={member.id} className="flex items-center gap-2">
+                  <Input
+                    value={editMemberName}
+                    onChange={(e) => setEditMemberName(e.target.value)}
+                    className="h-7 flex-1"
+                    autoFocus
+                  />
+                  <Button size="sm" variant="ghost" onClick={() => void handleUpdateMember(member.id)}>
+                    Save
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingMemberId(null)}>
+                    Cancel
+                  </Button>
+                </li>
+              ) : (
+                <li key={member.id} className="flex items-center gap-2">
+                  <span className="flex-1">
+                    {member.displayName}
+                    {member.isGuest && <span className="ml-1.5 text-xs text-muted-foreground">(guest)</span>}
+                  </span>
+                  {user && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingMemberId(member.id)
+                          setEditMemberName(member.displayName)
+                        }}
+                      >
+                        Rename
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => void handleRemoveMember(member.id)}>
+                        Remove
+                      </Button>
+                    </>
+                  )}
+                </li>
+              ),
+            )}
           </ul>
 
           {user && (

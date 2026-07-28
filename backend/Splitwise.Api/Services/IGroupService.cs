@@ -16,4 +16,9 @@ public interface IGroupService
     // created member is structurally identical to a guest who joined via invite (UserId
     // null, IsGuest true) — this is just an alternate way to create that same row.
     Task<AddMemberResult> AddMemberAsync(Guid groupId, Guid requestingUserId, AddMemberRequest request, CancellationToken ct = default);
+
+    // Renaming and removing are both restricted to signed-in members of the group (same gate
+    // as AddMemberAsync) — there's no separate "owner" role in this app's permission model.
+    Task<UpdateMemberResult> UpdateMemberAsync(Guid groupId, Guid memberId, Guid requestingUserId, UpdateMemberRequest request, CancellationToken ct = default);
+    Task<RemoveMemberResult> RemoveMemberAsync(Guid groupId, Guid memberId, Guid requestingUserId, CancellationToken ct = default);
 }
