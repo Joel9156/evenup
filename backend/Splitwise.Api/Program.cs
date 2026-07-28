@@ -74,6 +74,21 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Applying migrations and (optionally) seeding demo data at startup, rather than requiring a
+// separate manual step, means a fresh deploy is browsable immediately.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<SplitwiseDbContext>();
+    db.Database.Migrate();
+
+    if (app.Configuration.GetValue<bool>("SeedDemoData"))
+    {
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var accountEncryption = scope.ServiceProvider.GetRequiredService<IAccountEncryptionService>();
+        await DemoDataSeeder.SeedAsync(db, passwordHasher, accountEncryption);
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
