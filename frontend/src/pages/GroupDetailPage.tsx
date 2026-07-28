@@ -168,6 +168,7 @@ export function GroupDetailPage() {
                     value={editMemberName}
                     onChange={(e) => setEditMemberName(e.target.value)}
                     className="h-7 flex-1"
+                    aria-label={`Rename ${member.displayName}`}
                     autoFocus
                   />
                   <Button size="sm" variant="ghost" onClick={() => void handleUpdateMember(member.id)}>
@@ -211,6 +212,7 @@ export function GroupDetailPage() {
                 value={newMemberName}
                 onChange={(e) => setNewMemberName(e.target.value)}
                 placeholder="Add someone by name, no invite needed"
+                aria-label="New member name"
                 className="flex-1"
               />
               <Button type="submit" size="sm" variant="outline" disabled={isAddingMember || !newMemberName.trim()}>
