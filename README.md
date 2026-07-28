@@ -15,7 +15,10 @@ A group expense-splitting app: track shared costs, settle up with the fewest pos
 - **Settlement messages** — generates a ready-to-send message (with the recipient's bank details, decrypted on demand) for email, WhatsApp, or copy-paste
 - **Dark mode**, a responsive layout, and a seeded demo group for browsing without registering
 
-![Balance breakdown](docs/screenshots/group-detail.png)
+<p float="left">
+  <img src="docs/screenshots/group-detail.png" width="49%" alt="Balance breakdown" />
+  <img src="docs/screenshots/dark-mode.png" width="49%" alt="Dark mode" />
+</p>
 
 ## AI chat design
 
