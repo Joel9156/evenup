@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { MeResponse, UpdateAccountResponse } from '@/lib/types'
 
@@ -39,7 +40,32 @@ export function ProfilePage() {
   }
 
   if (!me) {
-    return <p className="text-muted-foreground">{error ?? 'Loading...'}</p>
+    if (error) {
+      return <p className="text-sm text-destructive">{error}</p>
+    }
+    return (
+      <div className="mx-auto flex max-w-sm flex-col gap-4">
+        <Skeleton className="h-8 w-24" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-1/3" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-2/3" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-1/2" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

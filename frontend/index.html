@@ -5,6 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+    <script>
+      // Runs before the app renders so the correct theme applies on first paint —
+      // otherwise a dark-mode user would see a flash of the light theme every load.
+      (function () {
+        var theme = localStorage.getItem('splitwise-theme') || 'system'
+        var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', isDark)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

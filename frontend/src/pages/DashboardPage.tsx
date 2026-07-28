@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { GroupResponse, MeResponse } from '@/lib/types'
 
@@ -56,16 +57,29 @@ export function DashboardPage() {
 
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
-      {groups === null && !error && <p className="mt-4 text-muted-foreground">Loading...</p>}
+      {groups === null && !error && (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-5 w-2/3" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-1/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {groups?.length === 0 && (
         <p className="mt-4 text-muted-foreground">You're not in any groups yet. Create one to get started.</p>
       )}
 
-      <div className="mt-4 flex flex-col gap-3">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {groups?.map((group) => (
           <Link key={group.id} to={`/groups/${group.id}`}>
-            <Card className="transition-colors hover:bg-muted/50">
+            <Card className="h-full transition-colors hover:bg-muted/50">
               <CardHeader>
                 <CardTitle>{group.name}</CardTitle>
               </CardHeader>

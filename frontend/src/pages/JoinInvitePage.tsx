@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { GroupPreviewResponse, JoinGroupResponse, PreviewMemberResponse } from '@/lib/types'
 import { useAuthStore } from '@/stores/authStore'
@@ -76,7 +77,19 @@ export function JoinInvitePage() {
   }
 
   if (!preview) {
-    return <p className="mx-auto max-w-sm text-center text-muted-foreground">Loading...</p>
+    return (
+      <div className="mx-auto max-w-sm">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-1/2" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-8 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

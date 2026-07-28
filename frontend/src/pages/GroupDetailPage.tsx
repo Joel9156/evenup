@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useMyMemberId } from '@/hooks/useMyMemberId'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { BalancesResponse, ExpenseResponse, GroupResponse } from '@/lib/types'
@@ -121,7 +122,28 @@ export function GroupDetailPage() {
   }
 
   if (!group) {
-    return <p className="text-muted-foreground">Loading...</p>
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-4 w-28" />
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-7 w-64" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-5 w-1/3" />
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   const inviteLink = `${window.location.origin}/join/${group.inviteCode}`
@@ -155,6 +177,7 @@ export function GroupDetailPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
       <Card>
         <CardHeader>
           <CardTitle>Members ({group.members.length})</CardTitle>
@@ -229,7 +252,10 @@ export function GroupDetailPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {balances === null ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-full" />
+            </div>
           ) : (
             <>
               <ul className="flex flex-col text-sm">
@@ -302,7 +328,10 @@ export function GroupDetailPage() {
         </CardHeader>
         <CardContent>
           {expenses === null ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="flex flex-col gap-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
           ) : expenses.length === 0 ? (
             <p className="text-sm text-muted-foreground">No expenses yet.</p>
           ) : (
@@ -343,6 +372,7 @@ export function GroupDetailPage() {
           </Button>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

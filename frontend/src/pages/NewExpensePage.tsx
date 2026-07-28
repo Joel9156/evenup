@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useMyMemberId } from '@/hooks/useMyMemberId'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { GroupResponse } from '@/lib/types'
@@ -103,7 +104,21 @@ export function NewExpensePage() {
   }
 
   if (!group) {
-    return <p className="text-muted-foreground">Loading...</p>
+    return (
+      <div className="mx-auto max-w-md">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-1/3" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (!myMemberId) {
