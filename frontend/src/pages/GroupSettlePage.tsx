@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -70,6 +70,11 @@ export function GroupSettlePage() {
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-4">
+      {id && (
+        <Link to={`/groups/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
+          ← Back to group
+        </Link>
+      )}
       <h1 className="text-2xl font-semibold">Settle up</h1>
 
       {!settlement && (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +8,19 @@ import { useMyMemberId } from '@/hooks/useMyMemberId'
 import { ApiError, apiFetch } from '@/lib/api'
 import type { BalancesResponse, ExpenseResponse, GroupResponse } from '@/lib/types'
 import { useAuthStore } from '@/stores/authStore'
+
+// The net balance is a sum across every expense a member touched (as payer and/or
+// shareholder) — this reconstructs that per-expense breakdown client-side from the already-
+// fetched expense list, so "owes $20.42" can be expanded into the line items behind it.
+function memberBreakdown(memberId: string, expenses: ExpenseResponse[]) {
+  return expenses
+    .map((expense) => {
+      const paid = expense.paidByMemberId === memberId ? expense.totalAmount : 0
+      const share = expense.shares.find((s) => s.memberId === memberId)?.amount ?? 0
+      return { expense, paid, share, net: paid - share }
+    })
+    .filter((row) => row.paid > 0 || row.share > 0)
+}
 
 export function GroupDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,6 +32,7 @@ export function GroupDetailPage() {
   const [copied, setCopied] = useState(false)
   const [newMemberName, setNewMemberName] = useState('')
   const [isAddingMember, setIsAddingMember] = useState(false)
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null)
 
   const myMemberId = useMyMemberId(group, id)
 
@@ -88,6 +103,10 @@ export function GroupDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Link to="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Back to my groups
+      </Link>
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{group.name}</h1>
         <div className="flex gap-2">
@@ -144,15 +163,55 @@ export function GroupDetailPage() {
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : (
             <>
-              <ul className="flex flex-col gap-1 text-sm">
-                {balances.netBalances.map((b) => (
-                  <li key={b.memberId} className="flex justify-between">
-                    <span>{b.displayName}</span>
-                    <span className={b.netBalance >= 0 ? 'text-emerald-600' : 'text-destructive'}>
-                      {b.netBalance >= 0 ? `is owed $${b.netBalance.toFixed(2)}` : `owes $${Math.abs(b.netBalance).toFixed(2)}`}
-                    </span>
-                  </li>
-                ))}
+              <ul className="flex flex-col text-sm">
+                {balances.netBalances.map((b) => {
+                  const isExpanded = expandedMemberId === b.memberId
+                  const breakdown = expenses ? memberBreakdown(b.memberId, expenses) : []
+                  return (
+                    <li key={b.memberId} className="border-b last:border-b-0">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-2 py-2 text-left"
+                        onClick={() => setExpandedMemberId(isExpanded ? null : b.memberId)}
+                      >
+                        <span className="flex items-center gap-1">
+                          {isExpanded ? (
+                            <ChevronDown className="size-3.5 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="size-3.5 text-muted-foreground" />
+                          )}
+                          {b.displayName}
+                        </span>
+                        <span className={b.netBalance >= 0 ? 'text-emerald-600' : 'text-destructive'}>
+                          {b.netBalance >= 0 ? `is owed $${b.netBalance.toFixed(2)}` : `owes $${Math.abs(b.netBalance).toFixed(2)}`}
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <ul className="flex flex-col gap-2 pb-3 pl-5 text-xs text-muted-foreground">
+                          {breakdown.length === 0 ? (
+                            <li>No expenses involve {b.displayName} yet.</li>
+                          ) : (
+                            breakdown.map((row) => (
+                              <li key={row.expense.id} className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-foreground">{row.expense.description}</p>
+                                  <p>
+                                    {row.paid > 0 && `paid $${row.paid.toFixed(2)}`}
+                                    {row.paid > 0 && row.share > 0 && ' · '}
+                                    {row.share > 0 && `share $${row.share.toFixed(2)}`}
+                                  </p>
+                                </div>
+                                <span className={row.net >= 0 ? 'text-emerald-600' : 'text-destructive'}>
+                                  {row.net >= 0 ? '+' : '-'}${Math.abs(row.net).toFixed(2)}
+                                </span>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
               {balances.suggestedTransactions.length > 0 && (
                 <div className="border-t pt-3 text-sm text-muted-foreground">
