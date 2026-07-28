@@ -15,8 +15,21 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Local dev stays on SQLite; a deployed environment sets ConnectionStrings:Postgres (Neon)
+// and that takes over instead. The existing SQLite-generated migrations have no
+// provider-specific annotations, so they apply cleanly under either provider.
+var postgresConnectionString = builder.Configuration.GetConnectionString("Postgres");
 builder.Services.AddDbContext<SplitwiseDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Default")));
+{
+    if (!string.IsNullOrEmpty(postgresConnectionString))
+    {
+        options.UseNpgsql(postgresConnectionString);
+    }
+    else
+    {
+        options.UseSqlite(builder.Configuration.GetConnectionString("Default"));
+    }
+});
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<EncryptionOptions>(builder.Configuration.GetSection(EncryptionOptions.SectionName));
