@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ApiError, apiFetch } from '@/lib/api'
-import type { GroupResponse } from '@/lib/types'
+import type { GroupResponse, MeResponse } from '@/lib/types'
 
 export function DashboardPage() {
   const [groups, setGroups] = useState<GroupResponse[] | null>(null)
+  const [me, setMe] = useState<MeResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -18,6 +19,14 @@ export function DashboardPage() {
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load your groups.')
+      })
+
+    apiFetch<MeResponse>('/api/auth/me')
+      .then((data) => {
+        if (!cancelled) setMe(data)
+      })
+      .catch(() => {
+        // Non-critical: the account nudge below just stays hidden if this fails.
       })
 
     return () => {
@@ -33,6 +42,17 @@ export function DashboardPage() {
           <Link to="/groups/new">New group</Link>
         </Button>
       </div>
+
+      {me && !me.hasAccountNumber && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <p className="text-sm text-foreground">
+            Add your bank account so friends can settle up with you in one click.
+          </p>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/profile">Add account</Link>
+          </Button>
+        </div>
+      )}
 
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
