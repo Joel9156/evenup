@@ -159,7 +159,7 @@ export function GroupChatPage() {
         <h1 className="text-2xl font-semibold">AI chat</h1>
         {id && (
           <Button asChild size="sm" variant="outline">
-            <Link to={`/groups/${id}`}>Back to group</Link>
+            <Link to={`/groups/${id}`}>Back to {group?.name ?? 'group'}</Link>
           </Button>
         )}
       </div>

@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError, apiFetch } from '@/lib/api'
-import type { SettleResponse, SettlementMessageResponse } from '@/lib/types'
+import type { GroupResponse, SettleResponse, SettlementMessageResponse } from '@/lib/types'
 
 interface AccountOverrideInput {
   bankName: string
@@ -14,12 +14,20 @@ interface AccountOverrideInput {
 
 export function GroupSettlePage() {
   const { id } = useParams<{ id: string }>()
+  const [groupName, setGroupName] = useState<string | null>(null)
   const [settlement, setSettlement] = useState<SettleResponse | null>(null)
   const [messages, setMessages] = useState<SettlementMessageResponse[] | null>(null)
   const [overrides, setOverrides] = useState<Record<string, AccountOverrideInput>>({})
   const [error, setError] = useState<string | null>(null)
   const [isSettling, setIsSettling] = useState(false)
   const [copiedFor, setCopiedFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    apiFetch<GroupResponse>(`/api/groups/${id}`)
+      .then((g) => setGroupName(g.name))
+      .catch(() => setGroupName(null))
+  }, [id])
 
   async function fetchMessages(settlementId: string, currentOverrides: Record<string, AccountOverrideInput>) {
     const body = {
@@ -72,7 +80,7 @@ export function GroupSettlePage() {
     <div className="mx-auto flex max-w-md flex-col gap-4">
       {id && (
         <Link to={`/groups/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-          ← Back to group
+          ← Back to {groupName ?? 'group'}
         </Link>
       )}
       <h1 className="text-2xl font-semibold">Settle up</h1>
