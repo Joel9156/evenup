@@ -104,12 +104,6 @@ using (var scope = app.Services.CreateScope())
     // (e.g. a bool column) being created wrong from stale migration DDL.
     if (!string.IsNullOrEmpty(postgresConnectionString))
     {
-        // TEMPORARY one-time reset: EnsureCreated() was finding pre-existing tables even
-        // right after the Neon schema was manually dropped via the SQL editor, so drop and
-        // recreate through this exact same connection to remove any doubt about which
-        // endpoint each side was actually talking to. Remove this EnsureDeleted call after
-        // the next successful deploy — leaving it in would wipe real data on every restart.
-        db.Database.EnsureDeleted();
         db.Database.EnsureCreated();
     }
     else
