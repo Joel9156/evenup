@@ -98,7 +98,18 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<SplitwiseDbContext>();
-    db.Database.Migrate();
+
+    // Postgres skips the SQLite-scaffolded migration file entirely and builds the schema
+    // straight from the current model, so there's no risk of a provider-specific type
+    // (e.g. a bool column) being created wrong from stale migration DDL.
+    if (!string.IsNullOrEmpty(postgresConnectionString))
+    {
+        db.Database.EnsureCreated();
+    }
+    else
+    {
+        db.Database.Migrate();
+    }
 
     if (app.Configuration.GetValue<bool>("SeedDemoData"))
     {
