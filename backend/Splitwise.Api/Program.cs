@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Splitwise.Api.Data;
@@ -29,6 +30,11 @@ builder.Services.AddDbContext<SplitwiseDbContext>(options =>
     {
         options.UseSqlite(builder.Configuration.GetConnectionString("Default"));
     }
+
+    // One migration set is shared across SQLite (local) and Npgsql (deployed) on purpose —
+    // the schema itself doesn't differ, only provider-internal annotations in the model
+    // snapshot do, which otherwise trips this warning-as-error every time the provider changes.
+    options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 });
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
