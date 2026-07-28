@@ -247,9 +247,14 @@ export function GroupDetailPage() {
                     </p>
                   </div>
                   {user && myMemberId === expense.createdByMemberId && (
-                    <Button size="sm" variant="ghost" onClick={() => void handleDeleteExpense(expense.id)}>
-                      Delete
-                    </Button>
+                    <div className="flex shrink-0 gap-1">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={`/groups/${group.id}/expenses/${expense.id}/edit`}>Edit</Link>
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => void handleDeleteExpense(expense.id)}>
+                        Delete
+                      </Button>
+                    </div>
                   )}
                 </li>
               ))}

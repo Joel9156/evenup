@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { EditExpensePage } from '@/pages/EditExpensePage'
 import { GroupChatPage } from '@/pages/GroupChatPage'
 import { GroupDetailPage } from '@/pages/GroupDetailPage'
 import { GroupSettlePage } from '@/pages/GroupSettlePage'
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/groups/new', element: <NewGroupPage /> },
           { path: '/groups/:id/chat', element: <GroupChatPage /> },
+          { path: '/groups/:id/expenses/:expenseId/edit', element: <EditExpensePage /> },
           { path: '/profile', element: <ProfilePage /> },
         ],
       },
