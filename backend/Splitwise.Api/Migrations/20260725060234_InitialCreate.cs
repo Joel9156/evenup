@@ -15,13 +15,13 @@ namespace Splitwise.Api.Migrations
                 name: "Users",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Email = table.Column<string>(type: "TEXT", nullable: false),
-                    PasswordHash = table.Column<string>(type: "TEXT", nullable: false),
-                    DisplayName = table.Column<string>(type: "TEXT", nullable: false),
-                    AccountNumberEncrypted = table.Column<string>(type: "TEXT", nullable: true),
-                    BankName = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(nullable: false),
+                    Email = table.Column<string>(nullable: false),
+                    PasswordHash = table.Column<string>(nullable: false),
+                    DisplayName = table.Column<string>(nullable: false),
+                    AccountNumberEncrypted = table.Column<string>(nullable: true),
+                    BankName = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -32,11 +32,11 @@ namespace Splitwise.Api.Migrations
                 name: "Groups",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    InviteCode = table.Column<string>(type: "TEXT", nullable: false),
-                    CreatedByUserId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(nullable: false),
+                    Name = table.Column<string>(nullable: false),
+                    InviteCode = table.Column<string>(nullable: false),
+                    CreatedByUserId = table.Column<Guid>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -53,12 +53,12 @@ namespace Splitwise.Api.Migrations
                 name: "Members",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    GroupId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    UserId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    DisplayName = table.Column<string>(type: "TEXT", nullable: false),
-                    IsGuest = table.Column<bool>(type: "INTEGER", nullable: false),
-                    JoinedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(nullable: false),
+                    GroupId = table.Column<Guid>(nullable: false),
+                    UserId = table.Column<Guid>(nullable: true),
+                    DisplayName = table.Column<string>(nullable: false),
+                    IsGuest = table.Column<bool>(nullable: false),
+                    JoinedAt = table.Column<DateTime>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -81,10 +81,10 @@ namespace Splitwise.Api.Migrations
                 name: "Settlements",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    GroupId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    GeneratedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    SnapshotJson = table.Column<string>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(nullable: false),
+                    GroupId = table.Column<Guid>(nullable: false),
+                    GeneratedAt = table.Column<DateTime>(nullable: false),
+                    SnapshotJson = table.Column<string>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -101,14 +101,14 @@ namespace Splitwise.Api.Migrations
                 name: "Expenses",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    GroupId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    PaidByMemberId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CreatedByMemberId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: false),
-                    TotalAmount = table.Column<decimal>(type: "TEXT", precision: 10, scale: 2, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(nullable: false),
+                    GroupId = table.Column<Guid>(nullable: false),
+                    PaidByMemberId = table.Column<Guid>(nullable: false),
+                    CreatedByMemberId = table.Column<Guid>(nullable: false),
+                    Description = table.Column<string>(nullable: false),
+                    TotalAmount = table.Column<decimal>(precision: 10, scale: 2, nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    UpdatedAt = table.Column<DateTime>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -137,10 +137,10 @@ namespace Splitwise.Api.Migrations
                 name: "ExpenseShares",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ExpenseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    MemberId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ShareAmount = table.Column<decimal>(type: "TEXT", precision: 10, scale: 2, nullable: false)
+                    Id = table.Column<Guid>(nullable: false),
+                    ExpenseId = table.Column<Guid>(nullable: false),
+                    MemberId = table.Column<Guid>(nullable: false),
+                    ShareAmount = table.Column<decimal>(precision: 10, scale: 2, nullable: false)
                 },
                 constraints: table =>
                 {
