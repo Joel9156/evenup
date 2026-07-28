@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>fb7e8194-b44c-4b6e-9322-3c9221f0e1ec</UserSecretsId>
+    <!-- Microsoft.AspNetCore.OpenApi's XML-comment source generator emits interceptors;
+         some SDK patch versions require this to be declared explicitly or the build fails
+         with CS9137 (seen on Railway's SDK 10.0.301, not reproduced locally on 10.0.302). -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
   </PropertyGroup>
 
   <ItemGroup>
