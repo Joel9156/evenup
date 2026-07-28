@@ -18,11 +18,13 @@ interface EditableExpense {
   totalAmount: string
   paidByMemberId: string
   shares: Record<string, ShareState>
+  editingExpenseId: string | null
 }
 
 function summarize(suggestion: ExpenseSuggestion): string {
+  const verb = suggestion.editingExpenseId ? "I'll update" : "I'll log"
   const shares = suggestion.shares.map((s) => `${s.displayName} $${s.amount.toFixed(2)}`).join(', ')
-  return `I'll log "${suggestion.description}" — $${suggestion.totalAmount.toFixed(2)}, paid by ${suggestion.paidByDisplayName}, split: ${shares}`
+  return `${verb} "${suggestion.description}" — $${suggestion.totalAmount.toFixed(2)}, paid by ${suggestion.paidByDisplayName}, split: ${shares}`
 }
 
 // The AI's suggestion is a starting point, not gospel — compound instructions occasionally
@@ -36,6 +38,7 @@ function buildEditableExpense(suggestion: ExpenseSuggestion, group: GroupRespons
     description: suggestion.description,
     totalAmount: suggestion.totalAmount.toFixed(2),
     paidByMemberId: suggestion.paidByMemberId,
+    editingExpenseId: suggestion.editingExpenseId,
     shares: Object.fromEntries(
       group.members.map((m) => [
         m.id,
@@ -80,14 +83,27 @@ export function GroupChatPage() {
         body: { messages: nextConversation },
       })
 
+      // Members the AI added are already saved (not staged like an expense suggestion) — reload
+      // the group so a newly added person shows up in the confirm card's paid-by/split options
+      // if this same turn also logged an expense involving them.
+      let currentGroup = group
+      if (response.addedMembers.length > 0 && id) {
+        currentGroup = await apiFetch<GroupResponse>(`/api/groups/${id}`)
+        setGroup(currentGroup)
+      }
+
+      const newTurns: AiChatMessageDto[] = []
+      if (response.addedMembers.length > 0) {
+        newTurns.push({ role: 'assistant', content: `Added ${response.addedMembers.join(', ')} to the group.` })
+      }
       if (response.needsClarification) {
-        setConversation((prev) => [
-          ...prev,
-          { role: 'assistant', content: response.clarificationQuestion ?? 'Could you clarify that?' },
-        ])
-      } else if (response.suggestion && group) {
-        setConversation((prev) => [...prev, { role: 'assistant', content: summarize(response.suggestion!) }])
-        setEditableExpense(buildEditableExpense(response.suggestion, group))
+        newTurns.push({ role: 'assistant', content: response.clarificationQuestion ?? 'Could you clarify that?' })
+      } else if (response.suggestion && currentGroup) {
+        newTurns.push({ role: 'assistant', content: summarize(response.suggestion) })
+        setEditableExpense(buildEditableExpense(response.suggestion, currentGroup))
+      }
+      if (newTurns.length > 0) {
+        setConversation((prev) => [...prev, ...newTurns])
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong talking to the AI.')
@@ -131,19 +147,33 @@ export function GroupChatPage() {
     setError(null)
     setIsSending(true)
 
+    const shares = Object.entries(editableExpense.shares)
+      .filter(([, s]) => s.included && Number(s.amount) > 0)
+      .map(([memberId, s]) => ({ memberId, amount: Number(s.amount) }))
+
     try {
-      await apiFetch(`/api/groups/${id}/expenses`, {
-        method: 'POST',
-        body: {
-          description: editableExpense.description,
-          totalAmount: Number(editableExpense.totalAmount),
-          paidByMemberId: editableExpense.paidByMemberId,
-          createdByMemberId: myMemberId,
-          shares: Object.entries(editableExpense.shares)
-            .filter(([, s]) => s.included && Number(s.amount) > 0)
-            .map(([memberId, s]) => ({ memberId, amount: Number(s.amount) })),
-        },
-      })
+      if (editableExpense.editingExpenseId) {
+        await apiFetch(`/api/expenses/${editableExpense.editingExpenseId}`, {
+          method: 'PUT',
+          body: {
+            description: editableExpense.description,
+            totalAmount: Number(editableExpense.totalAmount),
+            paidByMemberId: editableExpense.paidByMemberId,
+            shares,
+          },
+        })
+      } else {
+        await apiFetch(`/api/groups/${id}/expenses`, {
+          method: 'POST',
+          body: {
+            description: editableExpense.description,
+            totalAmount: Number(editableExpense.totalAmount),
+            paidByMemberId: editableExpense.paidByMemberId,
+            createdByMemberId: myMemberId,
+            shares,
+          },
+        })
+      }
       setEditableExpense(null)
       setConversation((prev) => [...prev, { role: 'assistant', content: 'Saved! What else would you like to log?' }])
     } catch (err) {
@@ -185,7 +215,9 @@ export function GroupChatPage() {
       {editableExpense && group && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Confirm this expense</CardTitle>
+            <CardTitle className="text-base">
+              {editableExpense.editingExpenseId ? 'Confirm this update' : 'Confirm this expense'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground">

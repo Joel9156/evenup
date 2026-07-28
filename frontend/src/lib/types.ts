@@ -122,10 +122,12 @@ export interface ExpenseSuggestion {
   paidByMemberId: string
   paidByDisplayName: string
   shares: ExpenseShareSuggestion[]
+  editingExpenseId: string | null
 }
 
 export interface AiChatResponse {
   needsClarification: boolean
   clarificationQuestion: string | null
   suggestion: ExpenseSuggestion | null
+  addedMembers: string[]
 }

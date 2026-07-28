@@ -12,10 +12,14 @@ public class AiChatServiceTests
     // A stand-in for the real OpenAI call — returns whatever result the test hands it, so
     // AiChatService's name-resolution and validation logic can be tested without network
     // access or a real API key.
-    private class FakeAiExpenseParser(LogExpenseToolResult result) : IAiExpenseParser
+    private class FakeAiExpenseParser(LogExpenseToolResult? result, List<string>? membersToAdd = null) : IAiExpenseParser
     {
-        public Task<LogExpenseToolResult> ParseAsync(IReadOnlyList<string> memberNames, IReadOnlyList<AiChatMessageDto> conversation, CancellationToken ct = default)
-            => Task.FromResult(result);
+        public Task<AiChatParseResult> ParseAsync(
+            IReadOnlyList<string> memberNames,
+            IReadOnlyList<EditableExpenseContext> editableExpenses,
+            IReadOnlyList<AiChatMessageDto> conversation,
+            CancellationToken ct = default)
+            => Task.FromResult(new AiChatParseResult(membersToAdd ?? [], result));
     }
 
     private static SplitwiseDbContext CreateDb()
@@ -49,10 +53,30 @@ public class AiChatServiceTests
         return carol;
     }
 
+    private static async Task<Expense> SeedExpenseAsync(
+        SplitwiseDbContext db, Group group, Member paidBy, Member createdBy, string description, decimal total, params (Member Member, decimal Amount)[] shares)
+    {
+        var expense = new Expense
+        {
+            Id = Guid.NewGuid(),
+            GroupId = group.Id,
+            PaidByMemberId = paidBy.Id,
+            CreatedByMemberId = createdBy.Id,
+            Description = description,
+            TotalAmount = total,
+            CreatedAt = DateTime.UtcNow,
+            Shares = shares.Select(s => new ExpenseShare { Id = Guid.NewGuid(), MemberId = s.Member.Id, ShareAmount = s.Amount }).ToList(),
+        };
+        db.Expenses.Add(expense);
+        await db.SaveChangesAsync();
+        return expense;
+    }
+
     private static AiChatRequest AnyRequest() => new() { Messages = [new AiChatMessageDto { Role = "user", Content = "split $90 for dinner" }] };
 
-    private static LogExpenseToolResult Resolved(string description, decimal total, string paidBy, List<string> splitMembers, List<LogExpensePersonalItem>? personalItems = null)
-        => new(description, total, paidBy, splitMembers, personalItems ?? [], false, null);
+    private static LogExpenseToolResult Resolved(
+        string description, decimal total, string paidBy, List<string> splitMembers, List<LogExpensePersonalItem>? personalItems = null, string? editExpenseId = null)
+        => new(description, total, paidBy, splitMembers, personalItems ?? [], false, null, editExpenseId);
 
     private static LogExpenseToolResult NeedsClarificationResult(string question)
         => new("", 0, "", [], [], true, question);
@@ -274,5 +298,92 @@ public class AiChatServiceTests
         var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
 
         Assert.True(result.Value!.NeedsClarification);
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_EditExpenseIdMatchesOwnExpense_SetsEditingExpenseIdOnSuggestion()
+    {
+        using var db = CreateDb();
+        var seed = await SeedGroupAsync(db);
+        var original = await SeedExpenseAsync(db, seed.Group, seed.Alice, seed.Alice, "Cinema tickets", 40m, (seed.Alice, 20m), (seed.Bob, 20m));
+        var toolResult = Resolved("Cinema tickets", 40m, "Alice", ["Alice"], editExpenseId: original.Id.ToString());
+        var sut = new AiChatService(db, new FakeAiExpenseParser(toolResult));
+
+        var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Value!.NeedsClarification);
+        Assert.Equal(original.Id, result.Value.Suggestion!.EditingExpenseId);
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_EditExpenseIdNotAmongOwnExpenses_ReturnsClarification()
+    {
+        // Covers both a hallucinated id and one belonging to an expense this user didn't
+        // create (only self-created expenses are ever offered to the model as candidates).
+        using var db = CreateDb();
+        var seed = await SeedGroupAsync(db);
+        var toolResult = Resolved("Cinema tickets", 40m, "Alice", ["Alice"], editExpenseId: Guid.NewGuid().ToString());
+        var sut = new AiChatService(db, new FakeAiExpenseParser(toolResult));
+
+        var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Value!.NeedsClarification);
+        Assert.Null(result.Value.Suggestion);
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_AddMemberOnly_CreatesGuestMemberImmediately()
+    {
+        using var db = CreateDb();
+        var seed = await SeedGroupAsync(db);
+        var sut = new AiChatService(db, new FakeAiExpenseParser(null, ["Anthony"]));
+
+        var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Value!.NeedsClarification);
+        Assert.Null(result.Value.Suggestion);
+        Assert.Equal(["Anthony"], result.Value.AddedMembers);
+
+        var stored = await db.Members.Where(m => m.GroupId == seed.Group.Id).ToListAsync();
+        var anthony = Assert.Single(stored, m => m.DisplayName == "Anthony");
+        Assert.True(anthony.IsGuest);
+        Assert.Null(anthony.UserId);
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_AddMemberAlreadyInGroup_DoesNotCreateDuplicate()
+    {
+        using var db = CreateDb();
+        var seed = await SeedGroupAsync(db);
+        var sut = new AiChatService(db, new FakeAiExpenseParser(null, ["bob"])); // case-insensitive match against existing "Bob"
+
+        var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.Value!.AddedMembers); // already existed, nothing new was added
+        var stored = await db.Members.Where(m => m.GroupId == seed.Group.Id).ToListAsync();
+        Assert.Equal(2, stored.Count); // still just Alice + Bob
+    }
+
+    [Fact]
+    public async Task ProcessMessageAsync_AddMemberAndLogExpenseTogether_NewMemberCanBeInTheSplit()
+    {
+        // "Add Anthony and split the cinema bill three ways" — the newly added member must be
+        // resolvable by name in the same turn's expense, not require a second round-trip.
+        using var db = CreateDb();
+        var seed = await SeedGroupAsync(db);
+        var toolResult = Resolved("Cinema", 30m, "Alice", ["Alice", "Bob", "Anthony"]);
+        var sut = new AiChatService(db, new FakeAiExpenseParser(toolResult, ["Anthony"]));
+
+        var result = await sut.ProcessMessageAsync(seed.Group.Id, seed.AliceUser.Id, AnyRequest());
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Value!.NeedsClarification);
+        Assert.Equal(["Anthony"], result.Value.AddedMembers);
+        Assert.Equal(3, result.Value.Suggestion!.Shares.Count);
+        Assert.Contains(result.Value.Suggestion.Shares, s => s.DisplayName == "Anthony" && s.Amount == 10m);
     }
 }

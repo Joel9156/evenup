@@ -14,6 +14,16 @@ public record LogExpenseToolResult(
     List<string> SplitMembers,
     List<LogExpensePersonalItem> PersonalItems,
     bool NeedsClarification,
-    string? ClarificationQuestion);
+    string? ClarificationQuestion,
+    // Set when the user is asking to correct/re-split an expense already listed in the
+    // "expenses you can edit" prompt context, rather than logging a new one. Must exactly
+    // match one of the ids given in that context — AiChatService re-validates it regardless.
+    string? EditExpenseId = null);
 
 public record LogExpensePersonalItem(string MemberName, decimal Amount);
+
+// Prompt context for one expense the requesting member is allowed to edit (they created it).
+// Given to the model so it can match a vague reference ("the cinema one") to a real expense
+// and carry over whatever the user doesn't explicitly change, instead of re-asking for
+// details it could already see.
+public record EditableExpenseContext(Guid Id, string Description, decimal TotalAmount, string PaidByName, List<LogExpensePersonalItem> Shares);

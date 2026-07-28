@@ -12,4 +12,9 @@ public class AiChatResponse
     // automatically. A real expense is only created once the user confirms it via the
     // existing POST /api/groups/{groupId}/expenses endpoint.
     public ExpenseSuggestion? Suggestion { get; set; }
+
+    // Members added to the group as part of processing this message (already saved — unlike
+    // Suggestion, these are applied immediately, not staged behind a confirm step). Empty if
+    // the message didn't ask to add anyone.
+    public List<string> AddedMembers { get; set; } = [];
 }

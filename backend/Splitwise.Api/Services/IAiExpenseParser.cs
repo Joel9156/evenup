@@ -4,5 +4,9 @@ namespace Splitwise.Api.Services;
 
 public interface IAiExpenseParser
 {
-    Task<LogExpenseToolResult> ParseAsync(IReadOnlyList<string> memberNames, IReadOnlyList<AiChatMessageDto> conversation, CancellationToken ct = default);
+    Task<AiChatParseResult> ParseAsync(
+        IReadOnlyList<string> memberNames,
+        IReadOnlyList<EditableExpenseContext> editableExpenses,
+        IReadOnlyList<AiChatMessageDto> conversation,
+        CancellationToken ct = default);
 }

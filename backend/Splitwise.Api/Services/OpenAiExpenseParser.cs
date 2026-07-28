@@ -8,13 +8,14 @@ namespace Splitwise.Api.Services;
 
 public class OpenAiExpenseParser : IAiExpenseParser
 {
-    private const string ToolName = "log_expense";
+    private const string LogExpenseToolName = "log_expense";
+    private const string AddMemberToolName = "add_member";
 
     // Deliberately asks the model for structure (who's in the even split, who has an extra
     // personal amount) rather than final dollar figures — LLMs are reliable at extracting that
     // from natural language, not at exact multi-step division/rounding, so AiChatService does
     // that arithmetic itself instead of trusting whatever numbers come back from the prompt.
-    private const string ToolParametersJson = """
+    private const string LogExpenseParametersJson = """
         {
           "type": "object",
           "properties": {
@@ -38,10 +39,24 @@ public class OpenAiExpenseParser : IAiExpenseParser
                 "required": ["memberName", "amount"]
               }
             },
+            "editExpenseId": {
+              "type": ["string", "null"],
+              "description": "Set to the exact id string of one of the expenses listed under 'Expenses you can edit' if the user is asking to correct/re-split/change something already logged there, instead of describing a brand-new expense. If the reference could plausibly match more than one of those expenses, do not guess: leave this null, set needsClarification=true, and list the ambiguous candidates (description + amount) in clarificationQuestion so the user can say which one. Leave null entirely for a new expense."
+            },
             "needsClarification": { "type": "boolean" },
             "clarificationQuestion": { "type": "string", "description": "The follow-up question to ask when information is missing" }
           },
           "required": ["description", "totalAmount", "paidBy", "splitMembers", "personalItems", "needsClarification"]
+        }
+        """;
+
+    private const string AddMemberParametersJson = """
+        {
+          "type": "object",
+          "properties": {
+            "displayName": { "type": "string", "description": "The name of the person to add to the group" }
+          },
+          "required": ["displayName"]
         }
         """;
 
@@ -61,11 +76,15 @@ public class OpenAiExpenseParser : IAiExpenseParser
         _options = options;
     }
 
-    public async Task<LogExpenseToolResult> ParseAsync(IReadOnlyList<string> memberNames, IReadOnlyList<AiChatMessageDto> conversation, CancellationToken ct = default)
+    public async Task<AiChatParseResult> ParseAsync(
+        IReadOnlyList<string> memberNames,
+        IReadOnlyList<EditableExpenseContext> editableExpenses,
+        IReadOnlyList<AiChatMessageDto> conversation,
+        CancellationToken ct = default)
     {
         _chatClient ??= new ChatClient(_options.Value.Model, _options.Value.ApiKey);
 
-        var messages = new List<ChatMessage> { new SystemChatMessage(BuildSystemPrompt(memberNames)) };
+        var messages = new List<ChatMessage> { new SystemChatMessage(BuildSystemPrompt(memberNames, editableExpenses)) };
         foreach (var turn in conversation)
         {
             messages.Add(turn.Role == "assistant"
@@ -75,32 +94,67 @@ public class OpenAiExpenseParser : IAiExpenseParser
 
         var options = new ChatCompletionOptions
         {
-            Tools = { ChatTool.CreateFunctionTool(ToolName, "Records a group expense entry in structured form", BinaryData.FromString(ToolParametersJson)) },
-            ToolChoice = ChatToolChoice.CreateFunctionChoice(ToolName),
+            Tools =
+            {
+                ChatTool.CreateFunctionTool(LogExpenseToolName, "Records or edits a group expense entry in structured form", BinaryData.FromString(LogExpenseParametersJson)),
+                ChatTool.CreateFunctionTool(AddMemberToolName, "Adds a new person to the group by name", BinaryData.FromString(AddMemberParametersJson)),
+            },
+            // Required (not forced to a single named tool) so the model can call log_expense,
+            // add_member, or both in the same turn — e.g. "add Anthony and split the cinema
+            // bill three ways" needs one call to each. AllowParallelToolCalls is what lets more
+            // than one come back in a single completion.
+            ToolChoice = ChatToolChoice.CreateRequiredChoice(),
+            AllowParallelToolCalls = true,
         };
 
         var completion = await _chatClient.CompleteChatAsync(messages, options, ct);
-        var toolCall = completion.Value.ToolCalls.FirstOrDefault()
-            ?? throw new InvalidOperationException("The AI did not call the expected log_expense tool.");
+        if (completion.Value.ToolCalls.Count == 0)
+        {
+            throw new InvalidOperationException("The AI did not call any tool.");
+        }
 
-        var args = JsonSerializer.Deserialize<LogExpenseArgs>(toolCall.FunctionArguments, JsonOptions)
-            ?? throw new InvalidOperationException("Could not parse the AI's log_expense arguments.");
+        var membersToAdd = new List<string>();
+        LogExpenseToolResult? expense = null;
 
-        return new LogExpenseToolResult(
-            args.Description,
-            args.TotalAmount,
-            args.PaidBy,
-            args.SplitMembers,
-            args.PersonalItems.Select(p => new LogExpensePersonalItem(p.MemberName, p.Amount)).ToList(),
-            args.NeedsClarification,
-            args.ClarificationQuestion);
+        foreach (var toolCall in completion.Value.ToolCalls)
+        {
+            if (toolCall.FunctionName == AddMemberToolName)
+            {
+                var addArgs = JsonSerializer.Deserialize<AddMemberArgs>(toolCall.FunctionArguments, JsonOptions)
+                    ?? throw new InvalidOperationException("Could not parse the AI's add_member arguments.");
+                membersToAdd.Add(addArgs.DisplayName);
+            }
+            else if (toolCall.FunctionName == LogExpenseToolName && expense is null)
+            {
+                var args = JsonSerializer.Deserialize<LogExpenseArgs>(toolCall.FunctionArguments, JsonOptions)
+                    ?? throw new InvalidOperationException("Could not parse the AI's log_expense arguments.");
+
+                expense = new LogExpenseToolResult(
+                    args.Description,
+                    args.TotalAmount,
+                    args.PaidBy,
+                    args.SplitMembers,
+                    args.PersonalItems.Select(p => new LogExpensePersonalItem(p.MemberName, p.Amount)).ToList(),
+                    args.NeedsClarification,
+                    args.ClarificationQuestion,
+                    args.EditExpenseId);
+            }
+        }
+
+        return new AiChatParseResult(membersToAdd, expense);
     }
 
-    private static string BuildSystemPrompt(IReadOnlyList<string> memberNames) => $"""
+    private static string BuildSystemPrompt(IReadOnlyList<string> memberNames, IReadOnlyList<EditableExpenseContext> editableExpenses) => $"""
         You are the AI assistant for a group expense-splitting app.
-        Analyze the user's natural-language input and call the log_expense tool.
+        Analyze the user's natural-language input and call the appropriate tool(s):
+        - log_expense to record a new expense or edit one already logged.
+        - add_member to add a new person to the group by name.
+        Call both in the same turn if the message asks for both (e.g. "add Anthony and split
+        the cinema bill between us all") — add_member first conceptually, then log_expense can
+        refer to that new person by name; you don't need to wait for a separate turn.
+        You must call at least one tool every turn.
 
-        Rules:
+        log_expense rules:
         - Group members: {string.Join(", ", memberNames)}
         - If the amount or who paid is unclear, set needsClarification=true and state exactly what's missing.
         - If the message doesn't make clear whether this should be split among the group or is a
@@ -116,9 +170,51 @@ public class OpenAiExpenseParser : IAiExpenseParser
           myself, that's $2.25"), add it to personalItems as an amount on top of their even
           share — do not subtract it from splitMembers or treat it as replacing their share.
         - If no currency is mentioned, assume the group's default currency.
+
+        {BuildEditableExpensesBlock(editableExpenses)}
+        - If the user is asking to correct, re-split, or otherwise change one of the expenses
+          listed above (not describe a brand-new one), set editExpenseId to its id and use its
+          listed totalAmount/paidBy/split as your starting point — only change what the user
+          explicitly asked to change, carrying everything else over unchanged. If it's ambiguous
+          which listed expense they mean, ask instead of guessing (see editExpenseId's
+          description). Any expense not listed above cannot be edited by this user — if they
+          seem to be referring to one, treat it as if you don't know its details and ask for
+          them, the same as a new expense.
+
+        add_member rules:
+        - Only call this when the message clearly asks to add a specific named person who isn't
+          already in the group list above. Don't call it speculatively.
+        - Added members join as an unclaimed placeholder (like clicking "add someone by name" in
+          the app) — no confirmation step needed, just add them.
         """;
 
-    private record LogExpenseArgs(string Description, decimal TotalAmount, string PaidBy, List<string> SplitMembers, List<LogExpensePersonalItemJson> PersonalItems, bool NeedsClarification, string? ClarificationQuestion);
+    private static string BuildEditableExpensesBlock(IReadOnlyList<EditableExpenseContext> editableExpenses)
+    {
+        if (editableExpenses.Count == 0)
+        {
+            return "Expenses you can edit: none yet.";
+        }
+
+        var lines = editableExpenses.Select(e =>
+        {
+            var shares = string.Join(", ", e.Shares.Select(s => $"{s.MemberName} ${s.Amount:0.00}"));
+            return $"- id={e.Id} \"{e.Description}\" total=${e.TotalAmount:0.00}, paid by {e.PaidByName}, split: {shares}";
+        });
+
+        return "Expenses you can edit (most recent first):\n" + string.Join("\n", lines);
+    }
+
+    private record LogExpenseArgs(
+        string Description,
+        decimal TotalAmount,
+        string PaidBy,
+        List<string> SplitMembers,
+        List<LogExpensePersonalItemJson> PersonalItems,
+        bool NeedsClarification,
+        string? ClarificationQuestion,
+        string? EditExpenseId = null);
 
     private record LogExpensePersonalItemJson(string MemberName, decimal Amount);
+
+    private record AddMemberArgs(string DisplayName);
 }
