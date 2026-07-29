@@ -1,4 +1,4 @@
-# Splitwise Clone
+# EvenUp
 
 A group expense-splitting app that tracks shared costs, settles up with the fewest possible transfers, and logs expenses conversationally through an AI chat assistant. Built as a portfolio project to explore a layered ASP.NET Core backend, real security fundamentals (hashing vs. encryption, permission-by-construction), and a responsible pattern for integrating an LLM into a product that touches real money.
 
@@ -53,7 +53,7 @@ Given each member's net balance (what they paid minus what they owe), the greedy
 ### Backend
 
 ```bash
-cd backend/Splitwise.Api
+cd backend/EvenUp.Api
 dotnet user-secrets set "Jwt:Key" "<a long random string>"
 dotnet user-secrets set "Encryption:AesKeyBase64" "<base64-encoded 32-byte key>"
 dotnet user-secrets set "OpenAi:ApiKey" "<your OpenAI API key>"
@@ -83,18 +83,18 @@ dotnet test
 
 ```
 backend/
-  Splitwise.Api/          ASP.NET Core Web API
-    Controllers/          Thin HTTP layer, delegates to services, maps Result → status code
-    Services/              Business logic (auth, groups, expenses, balances, AI chat)
-    Models/                EF Core entities
-    Dtos/                  Request/response shapes per feature
-  Splitwise.Api.Tests/     xUnit tests, one file per service
+  EvenUp.Api/            ASP.NET Core Web API
+    Controllers/         Thin HTTP layer, delegates to services, maps Result → status code
+    Services/             Business logic (auth, groups, expenses, balances, AI chat)
+    Models/               EF Core entities
+    Dtos/                 Request/response shapes per feature
+  EvenUp.Api.Tests/      xUnit tests, one file per service
 frontend/
-  src/pages/               One component per route
-  src/components/ui/       shadcn/ui primitives
-  src/stores/               Zustand stores (auth, guest session, theme)
+  src/pages/              One component per route
+  src/components/ui/      shadcn/ui primitives
+  src/stores/              Zustand stores (auth, guest session, theme)
 specs/
-  splitwise-clone-spec.md  The original design spec this was built from
+  evenup-clone-spec.md    The original design spec this was built from
 ```
 
 ## Deployment

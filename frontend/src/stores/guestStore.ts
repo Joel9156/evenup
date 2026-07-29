@@ -21,6 +21,6 @@ export const useGuestStore = create<GuestState>()(
       setMembership: (groupId, membership) =>
         set((state) => ({ memberships: { ...state.memberships, [groupId]: membership } })),
     }),
-    { name: 'splitwise-guest' },
+    { name: 'evenup-guest' },
   ),
 )

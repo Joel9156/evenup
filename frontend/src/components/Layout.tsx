@@ -39,7 +39,7 @@ export function Layout() {
       <header className="border-border border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link to={user ? '/dashboard' : '/'} className="font-semibold">
-            Splitwise
+            EvenUp
           </Link>
           <nav className="flex items-center gap-3 text-sm">
             {user ? (

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type Theme = 'light' | 'dark' | 'system'
 
-const STORAGE_KEY = 'splitwise-theme'
+const STORAGE_KEY = 'evenup-theme'
 
 function systemPrefersDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches

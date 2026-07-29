@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="EvenUp.Api.Tests/EvenUp.Api.Tests.csproj" />
+  <Project Path="EvenUp.Api/EvenUp.Api.csproj" />
+</Solution>
