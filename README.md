@@ -2,7 +2,7 @@
 
 A group expense-splitting app that tracks shared costs, settles up with the fewest possible transfers, and logs expenses conversationally through an AI chat assistant. Built as a portfolio project to explore a layered ASP.NET Core backend, real security fundamentals (hashing vs. encryption, permission-by-construction), and a responsible pattern for integrating an LLM into a product that touches real money.
 
-**Live demo.** [splitwise-five-zeta.vercel.app/join/DEMOTRIP](https://splitwise-five-zeta.vercel.app/join/DEMOTRIP) browses a seeded demo group with no sign-up required.
+**Live demo.** [evenup-groups.vercel.app/join/DEMOTRIP](https://evenup-groups.vercel.app/join/DEMOTRIP) browses a seeded demo group with no sign-up required.
 
 ![Landing page](docs/screenshots/landing.png)
 
