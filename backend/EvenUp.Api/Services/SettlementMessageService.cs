@@ -36,7 +36,7 @@ public class SettlementMessageService(
 
         var overridesByMember = request.AccountOverrides.ToDictionary(o => o.MemberId, o => new AccountInfo(o.BankName, o.AccountNumber));
 
-        var shareLink = $"{frontendOptions.Value.BaseUrl.TrimEnd('/')}/groups/{settlement.GroupId}/settle?settlementId={settlement.Id}";
+        var shareLink = $"{frontendOptions.Value.BaseUrl.TrimEnd('/')}/groups/{settlement.GroupId}";
 
         return transactions.Select(t => BuildMessage(t, settlement.Group.Name, membersById, overridesByMember, shareLink)).ToList();
     }
