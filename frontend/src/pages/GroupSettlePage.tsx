@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError, apiFetch } from '@/lib/api'
-import type { GroupResponse, SettleResponse, SettlementMessageResponse } from '@/lib/types'
+import type { GroupResponse, SettlementMessageResponse } from '@/lib/types'
 
 interface AccountOverrideInput {
   bankName: string
@@ -14,8 +14,10 @@ interface AccountOverrideInput {
 
 export function GroupSettlePage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const settlementIdFromUrl = searchParams.get('settlementId')
   const [groupName, setGroupName] = useState<string | null>(null)
-  const [settlement, setSettlement] = useState<SettleResponse | null>(null)
+  const [settlementId, setSettlementId] = useState<string | null>(null)
   const [messages, setMessages] = useState<SettlementMessageResponse[] | null>(null)
   const [overrides, setOverrides] = useState<Record<string, AccountOverrideInput>>({})
   const [error, setError] = useState<string | null>(null)
@@ -29,13 +31,22 @@ export function GroupSettlePage() {
       .catch(() => setGroupName(null))
   }, [id])
 
-  async function fetchMessages(settlementId: string, currentOverrides: Record<string, AccountOverrideInput>) {
+  useEffect(() => {
+    if (!settlementIdFromUrl) return
+    setSettlementId(settlementIdFromUrl)
+    fetchMessages(settlementIdFromUrl, {}).catch((err) => {
+      setError(err instanceof ApiError ? err.message : 'Could not load that settlement.')
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settlementIdFromUrl])
+
+  async function fetchMessages(sid: string, currentOverrides: Record<string, AccountOverrideInput>) {
     const body = {
       accountOverrides: Object.entries(currentOverrides)
         .filter(([, v]) => v.bankName && v.accountNumber)
         .map(([memberId, v]) => ({ memberId, bankName: v.bankName, accountNumber: v.accountNumber })),
     }
-    const result = await apiFetch<SettlementMessageResponse[]>(`/api/settlements/${settlementId}/messages`, {
+    const result = await apiFetch<SettlementMessageResponse[]>(`/api/settlements/${sid}/messages`, {
       method: 'POST',
       body,
     })
@@ -48,8 +59,8 @@ export function GroupSettlePage() {
     setIsSettling(true)
 
     try {
-      const result = await apiFetch<SettleResponse>(`/api/groups/${id}/settle`, { method: 'POST' })
-      setSettlement(result)
+      const result = await apiFetch<{ settlementId: string }>(`/api/groups/${id}/settle`, { method: 'POST' })
+      setSettlementId(result.settlementId)
       await fetchMessages(result.settlementId, overrides)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to settle up.')
@@ -59,8 +70,8 @@ export function GroupSettlePage() {
   }
 
   async function handleUpdateMessages() {
-    if (!settlement) return
-    await fetchMessages(settlement.settlementId, overrides)
+    if (!settlementId) return
+    await fetchMessages(settlementId, overrides)
   }
 
   function updateOverride(memberId: string, field: keyof AccountOverrideInput, value: string) {
@@ -85,7 +96,7 @@ export function GroupSettlePage() {
       )}
       <h1 className="text-2xl font-semibold">Settle up</h1>
 
-      {!settlement && (
+      {!settlementId && (
         <Card>
           <CardContent className="flex flex-col gap-3 pt-4">
             <p className="text-sm text-muted-foreground">
@@ -100,7 +111,9 @@ export function GroupSettlePage() {
         </Card>
       )}
 
-      {settlement && messages?.length === 0 && (
+      {settlementId && error && <p className="text-sm text-destructive">{error}</p>}
+
+      {settlementId && messages?.length === 0 && (
         <p className="text-sm text-muted-foreground">Everyone's already settled up — no transfers needed.</p>
       )}
 
